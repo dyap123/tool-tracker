@@ -529,14 +529,15 @@ async function processImportFile(file, st){
 function handleImportFile(e){ processImportFile(e.target.files[0], document.getElementById('impStatus')); }
 
 // Make any element a drag-and-drop target that feeds the import pipeline.
-function wireDropzone(el, st){
+function wireDropzone(el, st, handler){
   if(!el || el._dzWired) return; el._dzWired=true;
+  handler = handler || processImportFile;
   const on=()=>el.classList.add('ring-2','ring-secondary','bg-surface-container');
   const off=()=>el.classList.remove('ring-2','ring-secondary','bg-surface-container');
   ['dragover','dragenter'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();on();}));
   ['dragleave','dragend'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();off();}));
   el.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();off();
-    const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) processImportFile(f, st);});
+    const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) handler(f, st);});
 }
 
 function buildHeaderMap(headerRow){ const m={}; (headerRow||[]).forEach((c,i)=>{ const k=String(c==null?'':c).toLowerCase().trim(); if(k && !(k in m)) m[k]=i; }); return m; }
@@ -628,14 +629,19 @@ async function extractPdfLines(file, onProgress){
     if(!window.Tesseract) throw new Error('Scanned invoice needs OCR, but the OCR library failed to load.');
     onProgress&&onProgress('Scanned invoice detected — running OCR (this can take a minute)…');
     const worker=await Tesseract.createWorker('eng');
+    try{ await worker.setParameters({tessedit_pageseg_mode:'6'}); }catch(e){}  // uniform block — best for these tables
     const ocr=[];
     for(let p=0;p<pageObjs.length;p++){
-      onProgress&&onProgress('OCR page '+(p+1)+'/'+pageObjs.length+'…');
-      const vp=pageObjs[p].getViewport({scale:2.2});
+      onProgress&&onProgress('OCR page '+(p+1)+'/'+pageObjs.length+'… (high-res — small serials need it)');
+      // Render at ~350 DPI equivalent (target ~2600px wide). Low res was garbling small tags.
+      const w1=pageObjs[p].getViewport({scale:1}).width || 612;
+      const scale=Math.min(4.5, Math.max(2.6, 2600/w1));
+      const vp=pageObjs[p].getViewport({scale});
       const canvas=document.createElement('canvas'); canvas.width=vp.width; canvas.height=vp.height;
       await pageObjs[p].render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
       const {data:{text}}=await worker.recognize(canvas);
       text.split('\n').forEach(l=>{ const t=l.trim(); if(t) ocr.push(t); });
+      canvas.width=canvas.height=0;  // free memory between pages
     }
     await worker.terminate();
     return {lines:ocr, scanned:true};
@@ -801,11 +807,9 @@ function val(id){ const e=document.getElementById(id); return e?e.value:''; }
 let assetStatusFilter='', assetQuery='';
 function renderAssets(root){
   const arr=assetsArr();
-  const filtered=arr.filter(a=>{
-    if(assetStatusFilter && (a.status||'')!==assetStatusFilter) return false;
-    if(assetQuery){ const h=[a.item_id,a.serial,a.description,a.category,a.assigned_to,a.part_no].join(' ').toLowerCase(); if(!h.includes(assetQuery)) return false; }
-    return true;
-  }).sort((a,b)=>String(a.item_id||a.description).localeCompare(String(b.item_id||b.description)));
+  // Status filter only happens at render; the text search filters rows in place (fluid, no rebuild).
+  const filtered=arr.filter(a=>!assetStatusFilter || (a.status||'')===assetStatusFilter)
+    .sort((a,b)=>String(a.item_id||a.description).localeCompare(String(b.item_id||b.description)));
   const chips=['','On Site','Transferred','Returned','Lost','Damaged'].map(s=>`<button data-action="asset-filter" data-st="${esc(s)}" class="chip ${assetStatusFilter===s?'on':''}">${s||'All'}</button>`).join('');
   root.innerHTML = pageHeader('Inventory Registry', filtered.length+' of '+arr.length+' assets · '+money(monthlyCharge())+'/mo on site',
     `<button class="btn-ghost" data-action="open-import"><span class="material-symbols-outlined text-[18px]">upload_file</span>Import</button>
@@ -813,21 +817,31 @@ function renderAssets(root){
      <button class="btn-primary" data-action="add-tool"><span class="material-symbols-outlined text-[18px]">add</span>Add Tool</button>`)
   + `<div class="flex flex-wrap gap-sm items-center mb-md">
        <div class="relative flex-1 min-w-[200px]"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
-       <input id="assetSearch" value="${esc(assetQuery)}" oninput="assetQuery=this.value.toLowerCase();renderCurrent();setTimeout(()=>{var e=document.getElementById('assetSearch');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}})" placeholder="Search ID, serial, description, foreman…" class="ipt pl-9"></div>
+       <input id="assetSearch" value="${esc(assetQuery)}" oninput="assetSearchInput(this.value)" placeholder="Search ID, serial, description, foreman…" class="ipt pl-9" autocomplete="off"></div>
+       <span id="assetCountLbl" class="font-body-sm text-on-surface-variant whitespace-nowrap"></span>
        <div class="flex gap-1 flex-wrap">${chips}</div>
      </div>`
   + (filtered.length ? `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-x-auto"><table class="ttable"><thead><tr>
-       <th>Asset ID</th><th>Name / Model</th><th>Status</th><th class="text-right">$/mo</th><th>Assigned</th><th class="text-center">Verified</th><th></th></tr></thead><tbody>`
-     + filtered.map(a=>`<tr data-action="asset-edit" data-key="${esc(a._key)}">
+       <th>Asset ID</th><th>Name / Model</th><th>Status</th><th class="text-right">$/mo</th><th>Assigned</th><th class="text-center">Verified</th><th></th></tr></thead><tbody id="assetRows">`
+     + filtered.map(a=>{ const hay=[a.item_id,a.serial,a.description,a.category,a.assigned_to,a.part_no].join(' ').toLowerCase();
+       return `<tr data-action="asset-edit" data-key="${esc(a._key)}" data-search="${esc(hay)}">
          <td class="font-bold text-primary">${esc(a.item_id||a.part_no||'—')}</td>
          <td><div class="font-semibold">${esc(a.description||'—')}</div><div class="font-body-sm text-on-surface-variant">${esc(a.category||'')}${a.source?' · '+esc(a.source):''}</div></td>
          <td>${statusBadge(a.status)}</td>
          <td class="text-right font-bold">${a.unit_cost?money2(a.unit_cost):'—'}</td>
          <td>${esc(a.assigned_to||'—')}</td>
          <td class="text-center">${(a.verified||'')==='Yes'?'<span class="material-symbols-outlined text-[18px]" style="color:#166534">check_circle</span>':((a.verified||'')==='Missing'?'<span class="material-symbols-outlined text-[18px]" style="color:#ba1a1a">cancel</span>':'<span class="text-outline">—</span>')}</td>
-         <td><span class="material-symbols-outlined text-on-surface-variant">chevron_right</span></td></tr>`).join('')
+         <td><span class="material-symbols-outlined text-on-surface-variant">chevron_right</span></td></tr>`;}).join('')
      + `</tbody></table></div>`
      : emptyState('inventory_2', arr.length? 'No assets match the filter.' : 'No assets yet — Import a ToolHound report or Add a Tool.'));
+  applyAssetSearch();
+}
+// Fluid in-place search: show/hide existing rows, never re-render or refetch.
+function assetSearchInput(v){ assetQuery=(v||'').toLowerCase(); applyAssetSearch(); }
+function applyAssetSearch(){
+  const q=assetQuery, rows=document.querySelectorAll('#assetRows tr[data-search]'); let shown=0;
+  rows.forEach(tr=>{ const m=!q || tr.dataset.search.indexOf(q)>=0; tr.style.display=m?'':'none'; if(m) shown++; });
+  const lbl=document.getElementById('assetCountLbl'); if(lbl) lbl.textContent=q?(shown+' match'+(shown===1?'':'es')):'';
 }
 
 function openAddTool(){
@@ -905,9 +919,19 @@ function renderOrders(root){
   const filtered=arr.filter(o=>!orderFilter||(o.status||'')===orderFilter);
   const chips=['','Pending','Delivered','Cancelled'].map(s=>`<button data-action="order-filter" data-st="${esc(s)}" class="chip ${orderFilter===s?'on':''}">${s||'All'}</button>`).join('');
   root.innerHTML = pageHeader('Orders & Receiving', arr.filter(o=>(o.status||'')==='Pending').length+' pending',
-    `<button class="btn-primary" data-action="order-new"><span class="material-symbols-outlined text-[18px]">add</span>New Order</button>`)
+    `<button class="btn-ghost" data-action="order-upload"><span class="material-symbols-outlined text-[18px]">upload_file</span>Upload Order Form</button>
+     <button class="btn-primary" data-action="order-new"><span class="material-symbols-outlined text-[18px]">add</span>New Order</button>`)
+  + `<label id="orderDrop" class="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-lg p-md mb-md cursor-pointer hover:bg-surface-container transition-all">
+       <div class="flex items-center gap-sm"><span class="material-symbols-outlined text-secondary text-[28px]">document_scanner</span><span class="font-label-md text-primary">Drop an order form here to extract what's been ordered</span></div>
+       <span class="font-body-sm text-on-surface-variant">PDF (scanned OK) or CSV/Excel — pulls qty + item, you review before creating.</span>
+       <input id="orderDropFile" type="file" accept=".csv,.xlsx,.xls,.pdf" class="hidden">
+       <div id="orderDropStatus" class="mt-xs font-body-sm text-on-surface-variant"></div>
+     </label>`
   + `<div class="flex gap-1 flex-wrap mb-md">${chips}</div>`
-  + (filtered.length ? `<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">`+filtered.map(o=>orderCard(o)).join('')+`</div>` : emptyState('local_shipping','No orders. Create one with New Order.'));
+  + (filtered.length ? `<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">`+filtered.map(o=>orderCard(o)).join('')+`</div>` : emptyState('local_shipping','No orders yet. Create one with New Order, or drop an order form above.'));
+  const od=document.getElementById('orderDrop');
+  if(od){ wireDropzone(od, document.getElementById('orderDropStatus'), processOrderForm);
+    document.getElementById('orderDropFile').addEventListener('change', e=>processOrderForm(e.target.files[0], document.getElementById('orderDropStatus'))); }
 }
 function orderCard(o){
   const st=(o.status||'Pending'); const c={'Pending':'#fd651e','Delivered':'#166534','Cancelled':'#6d7589'}[st]||'#6d7589';
@@ -948,6 +972,66 @@ async function saveOrder(){
   const o={ description:desc, qty:parseInt(val('odQty'))||1, date_needed:val('odNeeded'), po:val('odPo').trim(), employee:val('odEmp').trim(),
     primary_id:'', unit:'', notes:'', status:'Pending', order_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs() };
   try{ await fb.push('orders', o); closeModal(); toast('Order created','success'); }catch(e){ toast('Failed: '+e.message,'error'); }
+}
+
+// ---- Upload an order form -> extract ordered line items (qty + description) ----
+async function processOrderForm(file, st){
+  if(!file) return;
+  const setMsg=m=>{ if(st) st.innerHTML=m; };
+  setMsg('Reading '+esc(file.name)+'…');
+  try{
+    const ext=file.name.split('.').pop().toLowerCase();
+    let lines;
+    if(ext==='pdf'){ const r=await extractPdfLines(file, m=>setMsg(esc(m))); lines=r.lines; }
+    else { const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]];
+      lines=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''}).map(r=>r.map(c=>String(c==null?'':c)).join(' ').trim()).filter(Boolean); }
+    const items=parseOrderLines(lines);
+    if(!items.length){ setMsg('<span class="text-error">No order line items found. You can still use New Order to add them by hand.</span>'); return; }
+    setMsg(''); showOrderReview(file.name, items);
+  }catch(err){ console.error(err); setMsg('<span class="text-error">Failed: '+esc(err.message)+'</span>'); }
+}
+// Heuristic: pull "qty + description" (either order) from a free-form order form.
+function parseOrderLines(lines){
+  const items=[]; const seen=new Set();
+  const skip=/^(qty|quantity|description|item|part\b|unit|amount|price|total|subtotal|tax|page|date|p\.?o\.?\b|purchase order|ship|bill|vendor|supplier|order #|attention|phone|fax|email)\b/i;
+  for(const raw of (lines||[])){
+    const s=raw.trim(); if(s.length<4) continue;
+    if(skip.test(s)) continue;
+    let qty=0, desc='';
+    let m=/^(\d{1,4})\s*(?:x|ea|pcs?|pc|units?|cs|bx)?\.?\s+([A-Za-z#].{3,})$/.exec(s);            // leading qty
+    if(m){ qty=parseInt(m[1]); desc=m[2]; }
+    else { m=/^([A-Za-z#].{3,}?)[\s.]+(\d{1,4})\s*(?:ea|pcs?|pc|units?|cs|bx)?\.?$/.exec(s); if(m){ desc=m[1]; qty=parseInt(m[2]); } }  // trailing qty
+    if(!desc || !qty || qty>9999) continue;
+    desc=desc.replace(/\s{2,}/g,' ').replace(/[._]{2,}/g,' ').replace(/\s*\$\s*[\d,.]+$/,'').trim();
+    if(!/[A-Za-z]{3}/.test(desc)) continue;                       // must contain real words
+    const k=desc.toLowerCase()+'|'+qty; if(seen.has(k)) continue; seen.add(k);
+    items.push({qty, description:desc});
+  }
+  return items;
+}
+function showOrderReview(fileName, items){
+  window._orderImport=items.map(it=>({qty:it.qty, description:it.description, _include:true}));
+  const rows=window._orderImport.map((it,i)=>`<tr>
+    <td class="text-center"><input type="checkbox" ${it._include?'checked':''} onchange="window._orderImport[${i}]._include=this.checked"></td>
+    <td><input class="ipt" value="${esc(it.description)}" onchange="window._orderImport[${i}].description=this.value"></td>
+    <td style="width:96px"><input type="number" min="1" class="ipt text-center" value="${it.qty}" onchange="window._orderImport[${i}].qty=parseInt(this.value)||1"></td></tr>`).join('');
+  modal(modalCard(`<div class="p-lg">
+    <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-primary">Review order form</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+    <p class="font-body-sm text-on-surface-variant mb-md">${window._orderImport.length} line item(s) detected from <b>${esc(fileName)}</b>. Best-effort — edit text, fix quantities, untick noise, then create.</p>
+    <div class="overflow-y-auto border border-outline-variant rounded" style="max-height:50vh"><table class="ttable"><thead><tr><th></th><th>Description</th><th class="text-center">Qty</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="flex gap-sm justify-end mt-lg"><button class="btn-ghost" data-action="close-modal">Cancel</button><button class="btn-primary" data-action="orders-commit">Create Orders</button></div>
+  </div>`,'max-w-2xl'));
+}
+async function commitOrders(){
+  const items=(window._orderImport||[]).filter(x=>x._include && x.description && x.description.trim());
+  if(!items.length){ toast('Nothing ticked to create','info'); return; }
+  let n=0;
+  for(const it of items){
+    const o={ description:it.description.trim(), qty:parseInt(it.qty)||1, date_needed:'', po:'', employee:'', primary_id:'', unit:'',
+      notes:'Imported from order form', status:'Pending', order_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs() };
+    try{ await fb.push('orders', o); n++; }catch(e){}
+  }
+  window._orderImport=null; closeModal(); toast(n+' order(s) created','success');
 }
 async function orderSetStatus(key,status){ try{ await fb.update('orders/'+key,{status,updatedAt:nowMs()}); toast('Order '+status,'success'); }catch(e){ toast('Failed','error'); } }
 async function orderToInventory(key){
@@ -1013,6 +1097,8 @@ function dispatchAction4(a, el){
     case 'order-filter': orderFilter=el.dataset.st; renderCurrent(); return true;
     case 'order-new': openOrderForm(); return true;
     case 'order-save': saveOrder(); return true;
+    case 'order-upload': { const f=document.getElementById('orderDropFile'); if(f) f.click(); return true; }
+    case 'orders-commit': commitOrders(); return true;
     case 'order-receive': orderSetStatus(key,'Delivered'); return true;
     case 'order-cancel': orderSetStatus(key,'Cancelled'); return true;
     case 'order-toinv': orderToInventory(key); return true;
@@ -1060,7 +1146,7 @@ function renderReports(root){
 }
 
 /* ---------- Lost Tracker (history + reconcile/compare) ---------- */
-let lostTab='history', lostCounts={}, lostSel={}, lostExpanded={}, lostMissingOnly=false;
+let lostTab='history', lostCounts={}, lostSel={}, lostExpanded={}, lostMissingOnly=false, reconExpandAll=false;
 function renderLost(root){
   const tabs=`<div class="flex gap-1 mb-md">
     <button data-action="lost-tab" data-t="history" class="chip ${lostTab==='history'?'on':''}">History</button>
@@ -1097,7 +1183,7 @@ function renderReconcile(root, tabs){
     if(!lineRows.length) return;
     const red=catMissing>0;
     body+=`<tr style="background:${red?'#fdecec':'#eff4ff'}"><td colspan="4" class="font-bold" style="color:${red?'#b91c1c':'#0b1c30'}">${esc(g.category)} <span class="font-body-sm" style="color:#76777d">· ${g.total} on site${red?' · '+catMissing+' missing':''}</span></td></tr>`;
-    lineRows.forEach(({line,key,miss})=>{ const red2=miss>0; const exp=!!lostExpanded[key]; const counted=lostCounts[key]!==undefined?lostCounts[key]:'';
+    lineRows.forEach(({line,key,miss})=>{ const red2=miss>0; const exp=reconExpandAll||!!lostExpanded[key]; const counted=lostCounts[key]!==undefined?lostCounts[key]:'';
       body+=`<tr ${red2?'style="background:#fff6f6"':''}><td style="padding-left:24px">${esc(line.label)}${line.flagged?' <span style="color:#fbbf24">⚑</span>':''}</td>
         <td class="text-center font-bold">${line.expected}</td>
         <td class="text-center"><input type="number" min="0" value="${esc(counted)}" onchange="lostCounts['${key}']=this.value;renderCurrent()" class="ipt" style="width:70px;text-align:center;${red2?'border-color:#b91c1c':''}"></td>
@@ -1222,8 +1308,8 @@ function dispatchAction5(a, el){
     case 'lost-report': buildLostReportPdf(); return true;
     case 'export-lost-xlsx': exportLostXlsx(); return true;
     case 'recon-missing': lostMissingOnly=!lostMissingOnly; renderCurrent(); return true;
-    case 'recon-expand': groupForReconcile(assetsArr()).forEach((g,ci)=>g.lines.forEach((l,li)=>lostExpanded[ci+':'+li]=true)); renderCurrent(); return true;
-    case 'recon-collapse': lostExpanded={}; renderCurrent(); return true;
+    case 'recon-expand': reconExpandAll=true; renderCurrent(); return true;
+    case 'recon-collapse': reconExpandAll=false; lostExpanded={}; renderCurrent(); return true;
     case 'recon-expand-line': lostExpanded[key]=!lostExpanded[key]; renderCurrent(); return true;
     case 'recon-clear': lostSel={}; renderCurrent(); return true;
     case 'recon-confirm': (async()=>{ const ids=Object.keys(lostSel).filter(k=>lostSel[k]); if(!ids.length){toast('Tick the lost Item IDs first','info');return;} if(!await requirePin())return; const n=await markLostKeys(ids,'Manager'); lostSel={}; lostCounts={}; toast(n+' marked lost','success'); renderCurrent(); })(); return true;
