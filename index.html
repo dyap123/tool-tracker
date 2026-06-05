@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>EquipTrack Pro — Tool Tracker</title>
+<title>HoundTool — Tool Tracker</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&amp;display=swap" rel="stylesheet"/>
@@ -15,6 +15,8 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- ToolHound PDF import -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- OCR for scanned (image-only) invoices -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script id="tailwind-config">
   tailwind.config = {
     darkMode: "class",
@@ -98,8 +100,8 @@
 <!-- Mobile header -->
 <header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-mobile h-16 bg-surface-container-lowest border-b border-outline-variant md:hidden">
   <div class="flex items-center gap-sm">
-    <span class="material-symbols-outlined text-primary" data-icon="construction">construction</span>
-    <span class="font-headline-lg font-black tracking-tight text-primary">EquipTrack Pro</span>
+    <span class="material-symbols-outlined text-primary" data-icon="pets">pets</span>
+    <span class="font-headline-lg font-black tracking-tight text-primary">HoundTool</span>
   </div>
   <div class="flex items-center gap-md">
     <button class="text-primary p-xs rounded" data-action="open-import"><span class="material-symbols-outlined">upload_file</span></button>
@@ -109,8 +111,8 @@
 <!-- Desktop sidebar -->
 <nav class="hidden md:flex flex-col fixed left-0 top-0 bottom-0 w-64 p-md gap-sm bg-surface-container-low border-r border-outline-variant z-40">
   <div class="flex items-center gap-sm mb-lg px-xs mt-sm">
-    <span class="material-symbols-outlined text-primary text-headline-xl" data-icon="construction">construction</span>
-    <span class="font-headline-md font-bold text-primary">EquipTrack Pro</span>
+    <span class="material-symbols-outlined text-primary text-headline-xl" data-icon="pets">pets</span>
+    <span class="font-headline-md font-bold text-primary">HoundTool</span>
   </div>
   <div class="flex items-center gap-sm p-sm mb-md bg-surface-container rounded-lg border border-outline-variant">
     <div class="w-10 h-10 rounded bg-primary-container flex items-center justify-center text-on-primary-container font-bold">FM</div>
@@ -498,29 +500,43 @@ function openImport(){
   modal(modalCard(`
    <div class="p-lg">
      <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-primary">Import ToolHound Report</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
-     <p class="font-body-sm text-on-surface-variant mb-md">Upload a ToolHound export — <b>CSV/Excel preferred</b>. PDF is supported but always review parsed rows before committing.</p>
-     <label class="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-lg p-xl cursor-pointer hover:bg-surface-container">
+     <p class="font-body-sm text-on-surface-variant mb-md">Drag &amp; drop or choose a ToolHound export. <b>CSV/Excel</b> imports instantly; <b>PDF invoices</b> (incl. scanned) are read by their <b>individual tagged line items</b> — review before committing.</p>
+     <label id="impDrop" class="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-lg p-xl cursor-pointer hover:bg-surface-container transition-all">
        <span class="material-symbols-outlined text-[40px] text-outline mb-sm">cloud_upload</span>
-       <span class="font-label-md text-primary">Choose file (.csv .xlsx .xls .pdf)</span>
+       <span class="font-label-md text-primary">Drop a file here, or click to choose (.csv .xlsx .xls .pdf)</span>
        <input id="impFile" type="file" accept=".csv,.xlsx,.xls,.pdf" class="hidden">
      </label>
      <div id="impStatus" class="mt-md font-body-sm text-on-surface-variant"></div>
    </div>`,'max-w-2xl'));
   document.getElementById('impFile').addEventListener('change', handleImportFile);
+  wireDropzone(document.getElementById('impDrop'), document.getElementById('impStatus'));
 }
 
-async function handleImportFile(e){
-  const file=e.target.files[0]; if(!file) return;
-  const st=document.getElementById('impStatus'); st.textContent='Parsing '+file.name+'…';
+async function processImportFile(file, st){
+  if(!file) return;
+  const setMsg=m=>{ if(st) st.innerHTML=m; };
+  setMsg('Parsing '+esc(file.name)+'…');
   try{
     const ext=file.name.split('.').pop().toLowerCase();
     let parsed;
-    if(ext==='pdf') parsed=await parsePdfReport(file);
+    if(ext==='pdf') parsed=await parsePdfReport(file, m=>setMsg(esc(m)));
     else parsed=await parseSpreadsheetReport(file);
-    if(!parsed.items.length){ st.innerHTML='<span class="text-error">No rows parsed. Check the file format.</span>'; return; }
+    if(!parsed.items.length){ setMsg('<span class="text-error">No line items parsed. Check the file format.</span>'); return; }
     const diff=diffImport(parsed.items);
     showImportReview(file.name, parsed, diff);
-  }catch(err){ console.error(err); st.innerHTML='<span class="text-error">Parse failed: '+esc(err.message)+'</span>'; }
+  }catch(err){ console.error(err); setMsg('<span class="text-error">Parse failed: '+esc(err.message)+'</span>'); }
+}
+function handleImportFile(e){ processImportFile(e.target.files[0], document.getElementById('impStatus')); }
+
+// Make any element a drag-and-drop target that feeds the import pipeline.
+function wireDropzone(el, st){
+  if(!el || el._dzWired) return; el._dzWired=true;
+  const on=()=>el.classList.add('ring-2','ring-secondary','bg-surface-container');
+  const off=()=>el.classList.remove('ring-2','ring-secondary','bg-surface-container');
+  ['dragover','dragenter'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();on();}));
+  ['dragleave','dragend'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();off();}));
+  el.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();off();
+    const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) processImportFile(f, st);});
 }
 
 function buildHeaderMap(headerRow){ const m={}; (headerRow||[]).forEach((c,i)=>{ const k=String(c==null?'':c).toLowerCase().trim(); if(k && !(k in m)) m[k]=i; }); return m; }
@@ -557,8 +573,11 @@ async function parseSpreadsheetReport(file){
 function mapRow(row,hmap,type,cat){
   if(type==='rental'){
     const part=colGet(row,hmap,['part no','part']); const desc=colGet(row,hmap,['description','desc']);
-    if(!part && !desc) return null;
-    return normalize({ item_id:'', part_no:part, serial:'', description:desc, category:cat,
+    // Prefer the individual tagged unit (item/trans/asset/tag/serial) over the part-type.
+    const itemId=colGet(row,hmap,['item no','item id','trans no','trans. no','asset no','tag','unit no']);
+    const serial=colGet(row,hmap,['serial number','serial']);
+    if(!part && !desc && !itemId) return null;
+    return normalize({ item_id:itemId, part_no:part, serial:serial, description:desc, category:cat,
       unit_cost:num(colGet(row,hmap,['monthly'])), qty:num(colGet(row,hmap,['qty','quantity']))||1,
       issued_date:colGet(row,hmap,['end date','end']), assigned_to:'', _status:'On Site' }, 'rental');
   }
@@ -585,35 +604,80 @@ function normalize(r, source){
     assigned_to:r.assigned_to||'', status:r._status||'On Site', notes:'', qty:parseInt(r.qty)||1, source };
 }
 
-async function parsePdfReport(file){
+// Pull text lines from a PDF. Uses the embedded text layer when present;
+// falls back to OCR (tesseract.js) for scanned / image-only invoices.
+async function extractPdfLines(file, onProgress){
   if(!window.pdfjsLib) throw new Error('PDF library not loaded');
   const buf=await file.arrayBuffer();
   const pdf=await pdfjsLib.getDocument({data:buf}).promise;
-  const lines=[];
+  const pageObjs=[]; let textLines=[]; let totalChars=0;
   for(let p=1;p<=pdf.numPages;p++){
-    const page=await pdf.getPage(p); const tc=await page.getTextContent();
+    const page=await pdf.getPage(p); pageObjs.push(page);
+    const tc=await page.getTextContent();
     const byY={};
     tc.items.forEach(it=>{ const y=Math.round(it.transform[5]); (byY[y]=byY[y]||[]).push(it); });
     Object.keys(byY).map(Number).sort((a,b)=>b-a).forEach(y=>{
       const its=byY[y].sort((a,b)=>a.transform[4]-b.transform[4]);
-      const txt=its.map(i=>i.str).join(' ').replace(/\s+/g,' ').trim(); if(txt) lines.push(txt);
+      const txt=its.map(i=>i.str).join(' ').replace(/\s+/g,' ').trim(); if(txt) textLines.push(txt);
     });
+    totalChars+=tc.items.reduce((s,i)=>s+(i.str||'').length,0);
   }
-  // Best-effort rental row parse: split on 2+ spaces; ToolHound rental columns
-  const items=[]; let cat='Unknown';
-  for(const line of lines){
-    const parts=line.split(/\s{2,}|\t/).map(s=>s.trim()).filter(Boolean);
-    if(parts.length<=2 && !/\d/.test(line)){ cat=line; continue; }
-    if(parts.length<5) continue;
-    if(/^(part no|category|description)$/i.test(parts[0])) continue;
-    // part_no, trans_no, description, end_date, daily, weekly, monthly, sell, type, qty, total
-    const rest=parts.slice(3);
-    const it=normalize({ item_id:'', part_no:parts[0], description:parts[2]||'', category:cat,
-      unit_cost:num(rest[3]||''), qty:parseInt(num(rest[6]||''))||1, _status:'On Site' }, 'pdf');
-    it._raw=line; it._review=true;
-    items.push(it);
+  // Scanned PDF (little/no embedded text) -> OCR each page.
+  const scanned = totalChars/Math.max(1,pdf.numPages) < 40;
+  if(scanned){
+    if(!window.Tesseract) throw new Error('Scanned invoice needs OCR, but the OCR library failed to load.');
+    onProgress&&onProgress('Scanned invoice detected — running OCR (this can take a minute)…');
+    const worker=await Tesseract.createWorker('eng');
+    const ocr=[];
+    for(let p=0;p<pageObjs.length;p++){
+      onProgress&&onProgress('OCR page '+(p+1)+'/'+pageObjs.length+'…');
+      const vp=pageObjs[p].getViewport({scale:2.2});
+      const canvas=document.createElement('canvas'); canvas.width=vp.width; canvas.height=vp.height;
+      await pageObjs[p].render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+      const {data:{text}}=await worker.recognize(canvas);
+      text.split('\n').forEach(l=>{ const t=l.trim(); if(t) ocr.push(t); });
+    }
+    await worker.terminate();
+    return {lines:ocr, scanned:true};
   }
-  return {type:'pdf', items, warnings:['PDF parsing is best-effort — review every row before committing.']};
+  return {lines:textLines, scanned:false};
+}
+
+// Parse a ToolHound rental invoice into INDIVIDUAL tagged line items.
+// The 8-digit number atop each group is the catalog part-type (NOT counted);
+// each indented sub-row carries a unique item tag — that's what we track.
+function parseRentalLines(lines){
+  const items=[];
+  let cur={part:'',desc:'',section:'',monthly:0};
+  let section='';
+  const hdr=/^(\d{8})\s+(.+?)\s+\$?\s*[\d.,]+\s*\/\s*dd/i;          // group header w/ daily rate
+  const monthlyRe=/\$\s*([\d,]+)\s*\/\s*mo/i;                       // monthly rate on header
+  const sub=/^(\d{3,6})\s+([0-9A-Za-z][0-9A-Za-z\-]{2,})\s+\d{1,2}\/\d{1,2}\/\d{2,4}\s+.*?\b(Partial|Return|Serialized)\b\s+(\d+)\s+\$?\s*([\d,]+\.\d{2})/i;
+  const secRe=/^([A-Za-z][A-Za-z &\-\/]+?)\s+Notes:/i;              // section banner "Small Tools  Notes: ..."
+  for(const raw of (lines||[])){
+    const s=raw.trim(); if(!s) continue;
+    const sec=secRe.exec(s); if(sec){ section=sec[1].trim(); continue; }
+    const h=hdr.exec(s);
+    if(h){ const mo=monthlyRe.exec(s); cur={part:h[1], desc:h[2].trim().replace(/\s+/g,' '), section:section, monthly:mo?num(mo[1]):0}; continue; }
+    const m=sub.exec(s);
+    if(m){
+      const tag=m[2].trim(); const qty=parseInt(m[4])||1;
+      if(/^\d{2}\/\d{2}/.test(tag)) continue;                       // guard against a stray date
+      const it=normalize({ item_id:tag, part_no:cur.part, serial:'', description:cur.desc,
+        category:cur.section||'', unit_cost:cur.monthly, qty:qty, issued_date:'', _status:'On Site' }, 'pdf');
+      it._review=true; it._raw=s; items.push(it);
+    }
+  }
+  return items;
+}
+
+async function parsePdfReport(file, onProgress){
+  const {lines, scanned}=await extractPdfLines(file, onProgress);
+  const items=parseRentalLines(lines);
+  const warn=['Parsed by individual tagged line item — review before committing.'];
+  if(scanned) warn.unshift('Scanned invoice was read by OCR; double-check item tags for misreads.');
+  if(!items.length) warn.push('No tagged line items were found. If this is a category-only summary, use the detailed line-item invoice.');
+  return {type:'rental', items, warnings:warn};
 }
 
 function diffImport(items){
@@ -932,7 +996,7 @@ async function setVerified(key,v){ const patch={verified:v, verifiedAt:v?nowMs()
 function exportAssetsXlsx(){
   const rows=assetsArr().map(a=>({ 'Item ID':a.item_id,'Serial':a.serial,'Part No':a.part_no,'Description':a.description,'Category':a.category,'Monthly Cost':num(a.unit_cost),'Status':a.status,'Assigned To':a.assigned_to,'Qty':a.qty,'Verified':a.verified,'PO':a.po,'Source':a.source }));
   if(!rows.length){ toast('No assets','info'); return; }
-  exportXlsx(rows,'Assets','EquipTrack Assets '+todayStr()+'.xlsx');
+  exportXlsx(rows,'Assets','HoundTool Assets '+todayStr()+'.xlsx');
 }
 
 /* ---------- Phase-4 action dispatch ---------- */
@@ -969,6 +1033,12 @@ function renderReports(root){
   const visible=CATEGORY_NAMES.filter(n=>buckets[n].total>0);
   const total=visible.reduce((s,n)=>s+buckets[n].total,0);
   root.innerHTML = pageHeader('Foreman Reports', total+' tools on site across '+visible.length+' categories'+(excludedConsumableQty?' · +'+excludedConsumableQty+' bulk':''),'')
+  + `<label id="reportsDrop" class="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-lg p-lg mb-gutter cursor-pointer hover:bg-surface-container transition-all">
+       <div class="flex items-center gap-sm mb-xs"><span class="material-symbols-outlined text-secondary text-[32px]">document_scanner</span><span class="font-headline-md text-primary">Drop a ToolHound invoice or asset export</span></div>
+       <span class="font-body-sm text-on-surface-variant text-center">Drag &amp; drop or click — CSV/Excel or PDF (scanned OK). Invoices are read by their <b>individual tagged line items</b>, then diffed against your assets to review.</span>
+       <input id="reportsDropFile" type="file" accept=".csv,.xlsx,.xls,.pdf" class="hidden">
+       <div id="reportsDropStatus" class="mt-sm font-body-sm text-on-surface-variant"></div>
+     </label>`
   + `<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
       <div class="bg-surface-container-lowest border border-outline-variant rounded p-lg">
         <div class="flex items-center gap-sm mb-sm"><span class="material-symbols-outlined text-secondary text-[28px]">checklist</span><h3 class="font-headline-md text-primary">Blank Count Checklist</h3></div>
@@ -982,6 +1052,11 @@ function renderReports(root){
         <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button></div>
       </div>
     </div>`;
+  const rdz=document.getElementById('reportsDrop');
+  if(rdz){
+    wireDropzone(rdz, document.getElementById('reportsDropStatus'));
+    document.getElementById('reportsDropFile').addEventListener('change', e=>processImportFile(e.target.files[0], document.getElementById('reportsDropStatus')));
+  }
 }
 
 /* ---------- Lost Tracker (history + reconcile/compare) ---------- */
