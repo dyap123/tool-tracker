@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EquipTrack Pro — Tool Tracker</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&amp;display=swap" rel="stylesheet"/>
+<!-- Firebase (RTDB, compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<!-- Exports -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- ToolHound PDF import -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: { extend: {
+      colors: {
+        "surface-tint":"#565e74","on-primary-container":"#7c839b","surface-container-high":"#dce9ff",
+        "on-error":"#ffffff","tertiary-container":"#0d1c2f","outline-variant":"#c6c6cd",
+        "on-secondary-container":"#571a00","on-secondary-fixed-variant":"#7f2b00","primary-container":"#131b2e",
+        "surface-container":"#e5eeff","on-tertiary-container":"#76859b","primary":"#000000",
+        "surface-variant":"#d3e4fe","on-surface":"#0b1c30","surface-container-low":"#eff4ff",
+        "secondary-fixed-dim":"#ffb599","inverse-on-surface":"#eaf1ff","on-tertiary-fixed":"#0d1c2f",
+        "on-surface-variant":"#45464d","surface-container-lowest":"#ffffff","secondary-fixed":"#ffdbce",
+        "outline":"#76777d","secondary-container":"#fd651e","primary-fixed":"#dae2fd","on-primary-fixed":"#131b2e",
+        "on-primary-fixed-variant":"#3f465c","background":"#f8f9ff","on-tertiary":"#ffffff",
+        "tertiary-fixed-dim":"#b9c7e0","on-secondary-fixed":"#370e00","on-tertiary-fixed-variant":"#3a485c",
+        "inverse-surface":"#213145","on-background":"#0b1c30","tertiary":"#000000","on-error-container":"#93000a",
+        "inverse-primary":"#bec6e0","surface":"#f8f9ff","surface-bright":"#f8f9ff","error":"#ba1a1a",
+        "error-container":"#ffdad6","secondary":"#a73a00","on-primary":"#ffffff","surface-dim":"#cbdbf5",
+        "surface-container-highest":"#d3e4fe","primary-fixed-dim":"#bec6e0","on-secondary":"#ffffff","tertiary-fixed":"#d5e3fd"
+      },
+      borderRadius:{ "DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem" },
+      spacing:{ "base":"4px","xl":"32px","margin-mobile":"16px","sm":"8px","xs":"4px","margin-desktop":"32px","gutter":"16px","lg":"24px","md":"16px" },
+      fontFamily:{ "headline-md":["Inter"],"headline-lg":["Inter"],"label-md":["Inter"],"body-md":["Inter"],"label-sm":["Inter"],"label-sm-mobile":["Inter"],"headline-xl-mobile":["Inter"],"body-sm":["Inter"],"headline-xl":["Inter"],"body-lg":["Inter"] },
+      fontSize:{
+        "headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],
+        "headline-lg":["24px",{"lineHeight":"32px","fontWeight":"600"}],
+        "label-md":["12px",{"lineHeight":"16px","letterSpacing":"0.05em","fontWeight":"700"}],
+        "body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}],
+        "label-sm":["10px",{"lineHeight":"12px","fontWeight":"700"}],
+        "label-sm-mobile":["10px",{"lineHeight":"12px","fontWeight":"700"}],
+        "headline-xl-mobile":["28px",{"lineHeight":"34px","letterSpacing":"-0.01em","fontWeight":"700"}],
+        "body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],
+        "headline-xl":["36px",{"lineHeight":"44px","letterSpacing":"-0.02em","fontWeight":"700"}],
+        "body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}]
+      }
+    } }
+  };
+</script>
+<style>
+  .material-symbols-outlined{ font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+  .material-symbols-outlined.fill{ font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#c6c6cd;border-radius:6px}
+  .industrial-checkbox{ appearance:none;-webkit-appearance:none;width:32px;height:32px;border:2px solid #76777d;border-radius:4px;cursor:pointer;flex-shrink:0;position:relative;background:#fff;transition:all .15s; }
+  .industrial-checkbox:checked{ background:#000;border-color:#000; }
+  .industrial-checkbox:checked::after{ content:'';position:absolute;left:10px;top:5px;width:8px;height:14px;border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg); }
+  .bg-pattern{ background-image:radial-gradient(#c6c6cd 1px,transparent 1px);background-size:16px 16px; }
+  /* Toasts */
+  #toastWrap{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center}
+  .toast{padding:10px 16px;border-radius:6px;font-size:13px;font-weight:600;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25);animation:tin .2s ease}
+  .toast.success{background:#166534}.toast.error{background:#ba1a1a}.toast.info{background:#131b2e}
+  @keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  /* Modal */
+  #modalRoot:empty{display:none}
+  #modalRoot{position:fixed;inset:0;z-index:150;display:flex;align-items:center;justify-content:center;background:rgba(11,28,48,.45);padding:16px}
+  /* Print: only the print-area shows */
+  @media print{
+    body>*:not(#printRoot){display:none !important}
+    #printRoot{display:block !important}
+    @page{ size:landscape; margin:10mm; }
+  }
+  #printRoot{display:none}
+  .btn-primary{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#000;color:#fff;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:.03em;min-height:40px}
+  .btn-primary:hover{background:#213145}
+  .btn-ghost{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid #c6c6cd;color:#0b1c30;border-radius:4px;font-size:12px;font-weight:700;background:#fff;min-height:40px}
+  .btn-ghost:hover{background:#e5eeff}
+  .btn-danger{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#ba1a1a;color:#fff;border-radius:4px;font-size:12px;font-weight:700;min-height:40px}
+  .ipt{width:100%;border:1px solid #c6c6cd;border-radius:4px;padding:8px 10px;font-size:14px;background:#fff}
+  .ipt:focus{outline:none;border-color:#000;box-shadow:0 0 0 1px #000}
+  .lbl{display:block;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#45464d;margin-bottom:4px}
+  .ttable{width:100%;border-collapse:collapse;font-size:14px}
+  .ttable th{text-align:left;padding:10px 12px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#45464d;border-bottom:1px solid #c6c6cd;background:#eff4ff;position:sticky;top:0}
+  .ttable td{padding:10px 12px;border-bottom:1px solid #e5eeff}
+  .ttable tbody tr:hover{background:#eff4ff;cursor:pointer}
+  .chip{padding:4px 10px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #c6c6cd;color:#45464d;background:#fff}
+  .chip.on{background:#000;color:#fff;border-color:#000}
+</style>
+</head>
+<body class="bg-background text-on-background antialiased h-screen overflow-hidden flex flex-col md:flex-row">
+
+<!-- Mobile header -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-mobile h-16 bg-surface-container-lowest border-b border-outline-variant md:hidden">
+  <div class="flex items-center gap-sm">
+    <span class="material-symbols-outlined text-primary" data-icon="construction">construction</span>
+    <span class="font-headline-lg font-black tracking-tight text-primary">EquipTrack Pro</span>
+  </div>
+  <div class="flex items-center gap-md">
+    <button class="text-primary p-xs rounded" data-action="open-import"><span class="material-symbols-outlined">upload_file</span></button>
+  </div>
+</header>
+
+<!-- Desktop sidebar -->
+<nav class="hidden md:flex flex-col fixed left-0 top-0 bottom-0 w-64 p-md gap-sm bg-surface-container-low border-r border-outline-variant z-40">
+  <div class="flex items-center gap-sm mb-lg px-xs mt-sm">
+    <span class="material-symbols-outlined text-primary text-headline-xl" data-icon="construction">construction</span>
+    <span class="font-headline-md font-bold text-primary">EquipTrack Pro</span>
+  </div>
+  <div class="flex items-center gap-sm p-sm mb-md bg-surface-container rounded-lg border border-outline-variant">
+    <div class="w-10 h-10 rounded bg-primary-container flex items-center justify-center text-on-primary-container font-bold">FM</div>
+    <div class="flex flex-col">
+      <span class="font-label-md text-primary">Fleet Manager</span>
+      <span class="font-body-sm text-on-surface-variant" id="navProject">LACC Project</span>
+    </div>
+  </div>
+  <ul class="flex flex-col gap-xs flex-1" id="navList">
+    <li><a class="navlink" data-view="dashboard" href="#"><span class="material-symbols-outlined" data-icon="dashboard">dashboard</span><span class="font-label-md">Dashboard</span></a></li>
+    <li><a class="navlink" data-view="assets" href="#"><span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span><span class="font-label-md">Assets</span></a></li>
+    <li><a class="navlink" data-view="orders" href="#"><span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span><span class="font-label-md">Orders</span></a></li>
+    <li><a class="navlink" data-view="audits" href="#"><span class="material-symbols-outlined" data-icon="fact_check">fact_check</span><span class="font-label-md">Audits</span></a></li>
+    <li><a class="navlink" data-view="reports" href="#"><span class="material-symbols-outlined" data-icon="description">description</span><span class="font-label-md">Foreman Reports</span></a></li>
+    <li><a class="navlink" data-view="lost" href="#"><span class="material-symbols-outlined" data-icon="search_off">search_off</span><span class="font-label-md">Lost Tracker</span></a></li>
+  </ul>
+  <button class="flex items-center justify-center gap-sm w-full py-sm bg-surface-container-lowest border border-outline-variant text-primary font-label-md rounded-lg hover:bg-surface-container transition-colors min-h-[44px] mb-sm" data-action="open-import">
+    <span class="material-symbols-outlined" data-icon="upload_file">upload_file</span> Import ToolHound
+  </button>
+  <button class="flex items-center justify-center gap-sm w-full py-sm bg-primary text-on-primary font-label-md rounded-lg hover:bg-inverse-surface transition-colors min-h-[44px]" data-action="add-tool">
+    <span class="material-symbols-outlined" data-icon="add">add</span> Add Tool On-Site
+  </button>
+</nav>
+
+<!-- Main -->
+<main class="flex-1 flex flex-col h-full overflow-y-auto mt-16 md:mt-0 md:ml-64 p-margin-mobile md:p-margin-desktop bg-surface pb-24 md:pb-margin-desktop">
+  <div id="viewRoot"></div>
+</main>
+
+<!-- Mobile bottom nav -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-2 bg-surface-container-lowest border-t border-outline-variant shadow-md rounded-t-xl" id="mobileNav">
+  <a class="mnav flex flex-col items-center justify-center rounded-full px-3 py-1" data-view="assets" href="#"><span class="material-symbols-outlined" data-icon="home_repair_service">home_repair_service</span><span class="font-label-sm-mobile">Assets</span></a>
+  <a class="mnav flex flex-col items-center justify-center rounded px-3 py-1" data-view="audits" href="#"><span class="material-symbols-outlined" data-icon="assignment_turned_in">assignment_turned_in</span><span class="font-label-sm-mobile">Audit</span></a>
+  <a class="mnav flex flex-col items-center justify-center rounded px-3 py-1" data-view="lost" href="#"><span class="material-symbols-outlined" data-icon="report_problem">report_problem</span><span class="font-label-sm-mobile">Lost</span></a>
+  <a class="mnav flex flex-col items-center justify-center rounded px-3 py-1" data-view="orders" href="#"><span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span><span class="font-label-sm-mobile">Orders</span></a>
+</nav>
+
+<div id="modalRoot"></div>
+<div id="toastWrap"></div>
+<div id="printRoot"></div>
+
+<script>
+/* ============================================================
+   Firebase bridge (RTDB compat) — namespaced
+   ============================================================ */
+const NS = 'tool-tracker'; // production namespace (use 'tool-tracker-dev' for testing)
+try { if(!firebase.apps.length) firebase.initializeApp({databaseURL:'https://gen-lang-client-0119642855-default-rtdb.firebaseio.com'}); }
+catch(e){ console.error('Firebase init failed', e); }
+const db = firebase.database();
+window.fb = {
+  listen:(p,cb)=>db.ref(NS+'/'+p).on('value',s=>cb(s.val())),
+  set:(p,d)=>db.ref(NS+'/'+p).set(d),
+  update:(p,d)=>db.ref(NS+'/'+p).update(d),
+  remove:(p)=>db.ref(NS+'/'+p).remove(),
+  push:(p,d)=>db.ref(NS+'/'+p).push(d),
+  get:(p)=>db.ref(NS+'/'+p).once('value').then(s=>s.val()),
+  inc:(p,by)=>db.ref(NS+'/'+p).transaction(v=>(v||0)+by),
+  max:(p,v)=>db.ref(NS+'/'+p).transaction(c=>Math.max(c||0,v)),
+  rootGet:(p)=>db.ref(p).once('value').then(s=>s.val()),
+  rootSet:(p,d)=>db.ref(p).set(d)
+};
+
+/* ============================================================
+   App state + live listeners
+   ============================================================ */
+const state = { assets:{}, orders:{}, lostLog:{}, foremen:{}, config:{}, counters:{}, ready:false };
+let currentView = 'dashboard';
+
+function startListeners(){
+  fb.listen('assets', v => { state.assets = v||{}; onData(); });
+  fb.listen('orders', v => { state.orders = v||{}; onData(); });
+  fb.listen('lostLog', v => { state.lostLog = v||{}; onData(); });
+  fb.listen('foremen', v => { state.foremen = v||{}; });
+  fb.listen('counters', v => { state.counters = v||{}; onData(); });
+  fb.listen('config', v => {
+    state.config = v||{};
+    const np=document.getElementById('navProject'); if(np) np.textContent = state.config.projectName || 'LACC Project';
+  });
+}
+let _renderQueued=false;
+function onData(){ state.ready=true; if(_renderQueued) return; _renderQueued=true; requestAnimationFrame(()=>{_renderQueued=false; renderCurrent();}); }
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function num(v){ const n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+function money(n){ return '$'+ (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}); }
+function money2(n){ return '$'+ (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function nowMs(){ return Date.now(); }
+function assetsArr(){ return Object.entries(state.assets||{}).map(([k,v])=>({_key:k, ...v})); }
+function ordersArr(){ return Object.entries(state.orders||{}).map(([k,v])=>({_key:k, ...v})); }
+function lostArr(){ return Object.entries(state.lostLog||{}).map(([k,v])=>({_key:k, ...v})); }
+function onSite(a){ return (a.status||'').toLowerCase()==='on site'; }
+function monthlyCharge(){ return assetsArr().filter(onSite).reduce((s,a)=>s+num(a.unit_cost)*(parseInt(a.qty)||1),0); }
+function onSiteCount(){ return assetsArr().filter(onSite).length; }
+function lostAllTime(){ return (state.counters&&state.counters.lostAllTime)||lostArr().length; }
+
+function toast(msg,kind){ const w=document.getElementById('toastWrap'); const el=document.createElement('div'); el.className='toast '+(kind||'info'); el.textContent=msg; w.appendChild(el); setTimeout(()=>el.remove(),2600); }
+
+// sanitize for RTDB keys
+function sanKey(s){ return String(s==null?'':s).trim().replace(/[.#$\[\]\/\s]+/g,'_'); }
+function shortHash(s){ let h=0; s=String(s||''); for(let i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0;} return Math.abs(h).toString(36).slice(0,6); }
+function assetKey(item_id, part_no, description){
+  const id=sanKey(item_id);
+  if(id) return id;
+  return 'pn_'+sanKey(part_no)+'_'+shortHash(description);
+}
+
+function statusBadge(status){
+  const s=(status||'').trim();
+  const map={'On Site':['#166534','check_circle'],'Transferred':['#1e40af','swap_horiz'],'Returned':['#6d7589','undo'],'Lost':['#ba1a1a','warning'],'Damaged':['#9a3412','build']};
+  const [bg,icon]=map[s]||['#6d7589','help'];
+  return `<span class="inline-flex items-center gap-1 px-2 py-1 text-white rounded-DEFAULT font-label-sm text-label-sm" style="background:${bg}"><span class="material-symbols-outlined text-[14px]">${icon}</span>${esc(s||'—')}</span>`;
+}
+
+/* ============================================================
+   Classification core — faithful port of tool_report.py
+   ============================================================ */
+const CATEGORY_RULES = [
+  ['Batteries', /BATTER/i],
+  ['Circular Saws', /CIRCULAR|WORM.?DRIVE|SKIL ?SAW/i],
+  ['Sawzalls', /RECIPROCATING|SAWZALL|SAWS.?ALL/i],
+  ['Drills & Impacts', /IMPACT|\bDRILL\b|ROTARY HAMMER|DUST EXTRACTOR/i],
+  ['Nail Guns', /NAILER|NAIL GUN/i],
+  ['Vacuums', /VACUUM|SHOP.?VAC|\bVAC\b/i],
+  ['Angle Grinders', /GRINDER/i],
+  ['Chargers', /CHARGER/i],
+  ['Power Equipment', /BLOWER|WELDER|COMPRESSOR|\bGENERATOR\b/i],
+];
+const HAND_TOOL_CATEGORY = 'Hand Tools';
+const BRANDS = ['DEWALT','MILWAUKEE','MAKITA','BOSCH','HILTI','METABO','RIDGID','RYOBI','PASLODE','HITACHI','HYTERA','LEICA','OZTEC','HONDA','STIHL','FESTOOL','KOBALT','KNAACK'];
+const MISC_SHEET_CATEGORIES = new Set(['Concrete P&F Equipment','Concrete Pump','Rigging & Hoisting Equip']);
+const CONSUMABLE_SHEET_CATEGORIES = new Set(['Concrete Forming Supplies','Formwork']);
+const CONSUMABLE_DESC_PATTERNS = ['SHE BOLT','NUT WASHER','CATHEAD','BRACKET - DOUBLE','BRACKET - PANEL CLIP','HAIRPIN','SNAPTIE','TURNBUCKLE - FORM ALIGNER','BARRICADE'];
+const CATEGORY_NAMES = ['Batteries','Circular Saws','Sawzalls','Drills & Impacts','Nail Guns','Hand Tools','Vacuums','Angle Grinders','Chargers','Layout Equipment','Jobsite & Storage','Concrete, Rigging & Misc','Power Equipment'];
+const BRAND_ORDER = ['DeWalt','Milwaukee','Makita','Bosch','Hilti','Metabo','Ridgid','Ryobi','Paslode','Hitachi','Hytera','Leica','Oztec','Honda','Stihl','Festool','Kobalt','Knaack','Unbranded'];
+const FLAG_UNBRANDED_IN = new Set(['Batteries','Circular Saws','Sawzalls','Drills & Impacts','Nail Guns','Angle Grinders','Chargers']);
+const NON_POWERTOOL_BATTERY_SUBS = new Set(['Radio','Data-collector']);
+const _brandRankMap = (()=>{ const m={}; BRAND_ORDER.forEach((b,i)=>m[b]=i); return m; })();
+function brandRank(b){ return (b in _brandRankMap)?_brandRankMap[b]:999; }
+
+function qtyOf(v){ const n=parseInt(parseFloat(v)); return isNaN(n)?0:n; }
+function findBrand(desc){
+  const up=(desc||'').toUpperCase();
+  for(const b of BRANDS){ if(new RegExp('\\b'+b+'\\b').test(up)) return b==='DEWALT'?'DeWalt':(b.charAt(0)+b.slice(1).toLowerCase()); }
+  return null;
+}
+function isConsumable(desc){ const up=(desc||'').toUpperCase(); return CONSUMABLE_DESC_PATTERNS.some(p=>new RegExp(p).test(up)); }
+function sizeSpec(desc){
+  const up=(desc||'').toUpperCase(); const bits=[];
+  let m=up.match(/(\d+(?:-\d+\/\d+|\/\d+)?)\s*IN\b/); if(m) bits.push(m[1]+'"');
+  m=up.match(/(\d+V)\b/); if(m) bits.push(m[1]);
+  return bits.join(' ');
+}
+function subtype(category, desc){
+  const up=(desc||'').toUpperCase();
+  if(category==='Batteries'){
+    if(up.includes('20/60V')) return '20/60V';
+    if(up.includes('NURON')||up.includes('22V')) return '22V Nuron';
+    if(up.includes('B12')) return '12V';
+    if(up.includes('36V')) return '36V';
+    if(up.includes('18V')) return '18V';
+    if(up.includes('20V')) return '20V';
+    if(up.includes('12V')) return '12V';
+    if(up.includes('RADIO')) return 'Radio';
+    if(up.includes('DATA COLLECTOR')) return 'Data-collector';
+    return 'Battery';
+  }
+  if(category==='Circular Saws') return 'Circular Saw';
+  if(category==='Sawzalls') return 'Reciprocating Saw';
+  if(category==='Drills & Impacts'){
+    if(up.includes('IMPACT DRIVER')) return 'Impact Driver';
+    if(up.includes('IMPACT WRENCH')) return 'Impact Wrench';
+    if(up.includes('IMPACT')) return 'Impact';
+    if(up.includes('DUST EXTRACTOR')) return 'Dust Extractor';
+    if(up.includes('ROTARY HAMMER')||up.includes('SDS')) return 'Rotary Hammer';
+    if(up.includes('SPADE')) return 'Spade Drill';
+    return 'Drill';
+  }
+  if(category==='Nail Guns'){
+    if(up.includes('DUPLEX')) return 'Duplex Nailer';
+    if(up.includes('FRAMING')) return 'Framing Nailer';
+    if(up.includes('PIN')) return 'Pin Nailer';
+    return 'Nailer';
+  }
+  if(category==='Angle Grinders') return 'Angle Grinder';
+  if(category==='Chargers'){
+    if(up.includes('DCB104')||up.includes('20/60')) return '20/60V Charger';
+    if(up.includes('NURON')||up.includes('22V')) return '22V Charger';
+    if(up.includes('36V')) return '36V Charger';
+    if(up.includes('18V')) return '18V Charger';
+    if(up.includes('12/20')||up.includes('12V')) return '12/20V Charger';
+    if(up.includes('20V')) return '20V Charger';
+    if(up.includes('HYTERA')) return 'Radio Charger';
+    if(up.includes('LEICA')||up.includes('CS20')) return 'Charger';
+    return 'Charger';
+  }
+  if(category==='Layout Equipment'){
+    if(up.includes('TOTAL STATION')) return 'Total Station';
+    if(up.includes('LASER')&&up.includes('ROTAT')) return 'Rotating Laser';
+    if(up.includes('LASER')&&up.includes('RECEIV')) return 'Laser Receiver';
+    if(up.includes('LASER')) return 'Laser Level';
+    if(up.includes('PRISM')) return 'Prism';
+    if(up.includes('TRIBRACH')||up.includes('TRIBARCH')) return 'Tribrach';
+    if(up.includes('STAKEOUT')) return 'Stakeout Pole';
+    if(up.includes('BUILDERS LEVEL')) return 'Builders Level';
+    if(up.includes('DATA COLLECTOR')) return 'Data Collector';
+    if(up.includes('BIPOD')) return 'Bipod';
+    if(up.includes('TRIPOD')) return 'Tripod';
+    if(up.includes('CARRIER')) return 'Carrier';
+    if(up.includes('BRACKET')) return 'Bracket';
+    if(up.includes('CHARGER')) return 'Charger';
+    return 'Layout Gear';
+  }
+  if(category==='Jobsite & Storage'){
+    if(up.includes('KNAACK')) return 'Box';
+    if(up.includes('RADIO MIC')||up.includes('MIC')) return 'Radio Mic';
+    if(up.includes('RADIO')) return 'Radio';
+    if(up.includes('LIGHT')) return 'Site Light';
+    if(up.includes('M BOX')||up.includes('SKIP BOX')) return 'Skip Box';
+    if(up.includes('CLAMSHELL')) return 'Clamshell';
+    if(up.includes('DRYWALL SAW BOX')) return 'Drywall Saw Box';
+    if(up.includes('CHARGER')) return 'Charger';
+    return 'Jobsite Gear';
+  }
+  if(category==='Hand Tools'){
+    if(up.includes('CHAIN')&&up.includes('HOIST')) return 'Chain Hoist';
+    return 'Hand Tool';
+  }
+  if(category==='Concrete, Rigging & Misc'){
+    if(up.includes('VIBRATOR')) return 'Vibrator';
+    if(up.includes('WASHOUT')) return 'Washout Pan';
+    if(up.includes('SLING')||up.includes('PIGTAIL')) return 'Bucket Sling';
+    if(up.includes('BUCKET')) return 'Concrete Bucket';
+    return 'Concrete Gear';
+  }
+  if(category==='Power Equipment'){
+    if(up.includes('BLOWER')) return 'Blower';
+    if(up.includes('WELDER')) return 'Welder';
+    if(up.includes('COMPRESSOR')) return 'Compressor';
+    if(up.includes('GENERATOR')) return 'Generator';
+    return 'Power Tool';
+  }
+  if(category==='Vacuums') return 'Vacuum';
+  return '';
+}
+function _categoryFor(desc, sheetCat){
+  for(const [name,re] of CATEGORY_RULES){ if(re.test(desc)) return name; }
+  if(sheetCat===HAND_TOOL_CATEGORY) return 'Hand Tools';
+  if(sheetCat==='Layout Equipment') return 'Layout Equipment';
+  if(sheetCat==='Jobsite Supplies & Equip') return 'Jobsite & Storage';
+  if(MISC_SHEET_CATEGORIES.has(sheetCat)) return 'Concrete, Rigging & Misc';
+  return 'Concrete, Rigging & Misc';
+}
+function _label(brand, sub, cat){
+  const isUn = brand==='Unbranded';
+  const isNPB = cat==='Batteries' && NON_POWERTOOL_BATTERY_SUBS.has(sub);
+  const flagged = isUn && FLAG_UNBRANDED_IN.has(cat) && !isNPB;
+  let bp; if(isUn && !flagged) bp='Generic'; else if(isUn) bp='Unbranded'; else bp=brand;
+  let label;
+  if(sub && bp && sub.toUpperCase().startsWith(bp.toUpperCase())) label=sub;
+  else { const parts=[bp,sub].filter(Boolean); label=parts.length?parts.join(' '):(bp||''); }
+  return {label, flagged};
+}
+// Returns {buckets:{cat:{rows:[{label,qty,flagged}],total}}, excludedConsumableQty}
+function classifyAssets(items){
+  const agg={}; CATEGORY_NAMES.forEach(n=>agg[n]={}); let excluded=0;
+  function place(cat,desc,qty,brand){
+    let sub=subtype(cat,desc);
+    if(brand===null){ const spec=sizeSpec(desc); if(spec) sub = sub?(spec+' '+sub):spec; }
+    const key=(brand||'Unbranded')+' '+sub;
+    agg[cat][key]=(agg[cat][key]||0)+qty;
+  }
+  for(const it of items){
+    if((it.status||'').trim().toLowerCase()!=='on site') continue;
+    const desc=(it.description||'').trim(); if(!desc) continue;
+    const qty=qtyOf(it.qty!=null?it.qty:1); if(qty<=0) continue;
+    const sheetCat=(it.category||'').trim();
+    if(CONSUMABLE_SHEET_CATEGORIES.has(sheetCat)||isConsumable(desc)){ excluded+=qty; continue; }
+    place(_categoryFor(desc,sheetCat), desc, qty, findBrand(desc));
+  }
+  const buckets={};
+  for(const cat of CATEGORY_NAMES){
+    const entries=Object.entries(agg[cat]).map(([k,qty])=>{const i=k.indexOf(' ');return {brand:k.slice(0,i),sub:k.slice(i+1),qty};});
+    entries.sort((a,b)=>(brandRank(a.brand)-brandRank(b.brand))||(a.sub<b.sub?-1:a.sub>b.sub?1:0));
+    const rows=[]; let total=0;
+    for(const {brand,sub,qty} of entries){ let {label,flagged}=_label(brand,sub,cat); if(flagged) label+='   ⚑ needs ID'; rows.push({label,qty,flagged}); total+=qty; }
+    buckets[cat]={rows,total};
+  }
+  return {buckets, excludedConsumableQty:excluded};
+}
+// Returns [{category,total,lines:[{label,expected,flagged,tools:[{_key,item_id,description,serial,unit_cost,qty}]}]}]
+function groupForReconcile(items){
+  const agg={}; CATEGORY_NAMES.forEach(n=>agg[n]={});
+  function place(cat,item,brand){
+    const desc=(item.description||'').trim();
+    let sub=subtype(cat,desc);
+    if(brand===null){ const spec=sizeSpec(desc); if(spec) sub = sub?(spec+' '+sub):spec; }
+    const key=(brand||'Unbranded')+' '+sub;
+    (agg[cat][key]=agg[cat][key]||[]).push(item);
+  }
+  for(const it of items){
+    if((it.status||'').trim().toLowerCase()!=='on site') continue;
+    const desc=(it.description||'').trim(); if(!desc) continue;
+    if(qtyOf(it.qty!=null?it.qty:1)<=0) continue;
+    const sheetCat=(it.category||'').trim();
+    if(CONSUMABLE_SHEET_CATEGORIES.has(sheetCat)||isConsumable(desc)) continue;
+    place(_categoryFor(desc,sheetCat), it, findBrand(desc));
+  }
+  const out=[];
+  for(const cat of CATEGORY_NAMES){
+    const entries=Object.entries(agg[cat]).map(([k,tools])=>{const i=k.indexOf(' ');return {brand:k.slice(0,i),sub:k.slice(i+1),tools};});
+    entries.sort((a,b)=>(brandRank(a.brand)-brandRank(b.brand))||(a.sub<b.sub?-1:a.sub>b.sub?1:0));
+    const lines=[]; let total=0;
+    for(const {brand,sub,tools} of entries){
+      const {label,flagged}=_label(brand,sub,cat);
+      const expected=tools.reduce((s,t)=>s+qtyOf(t.qty!=null?t.qty:1),0);
+      lines.push({label,expected,flagged,tools:tools.map(t=>({_key:t._key,item_id:t.item_id||'',description:t.description||'',serial:t.serial||'',unit_cost:t.unit_cost||'',qty:qtyOf(t.qty!=null?t.qty:1)}))});
+      total+=expected;
+    }
+    if(total>0) out.push({category:cat,total,lines});
+  }
+  return out;
+}
+
+/* ============================================================
+   Modal + PIN
+   ============================================================ */
+function modal(html){ document.getElementById('modalRoot').innerHTML = html; }
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function modalCard(inner, maxw){ return `<div class="bg-surface-container-lowest border border-outline-variant rounded-xl w-full ${maxw||'max-w-lg'} max-h-[88vh] overflow-y-auto shadow-lg">${inner}</div>`; }
+
+function effectivePin(){ return (state.config&&state.config.pin) || '050103'; }
+let _pinOk=false;
+function requirePin(){
+  return new Promise(res=>{
+    if(_pinOk){ res(true); return; }
+    modal(modalCard(`
+      <div class="p-lg">
+        <h3 class="font-headline-md text-primary mb-sm">Manager PIN</h3>
+        <p class="font-body-sm text-on-surface-variant mb-md">Enter PIN to continue.</p>
+        <input id="pinInput" type="password" inputmode="numeric" class="w-full border border-outline-variant rounded p-sm mb-md" placeholder="PIN" autofocus/>
+        <div class="flex gap-sm justify-end">
+          <button class="px-md py-2 border border-outline-variant rounded font-label-md" data-action="pin-cancel">Cancel</button>
+          <button class="px-md py-2 bg-primary text-on-primary rounded font-label-md" data-action="pin-ok">Unlock</button>
+        </div>
+      </div>`,'max-w-sm'));
+    const inp=document.getElementById('pinInput'); inp.focus();
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter') document.querySelector('[data-action="pin-ok"]').click(); });
+    window._pinResolve=res;
+  });
+}
+
+/* ============================================================
+   Share / export helpers
+   ============================================================ */
+function isTouch(){ return ('ontouchstart' in window) || navigator.maxTouchPoints>0; }
+async function shareBlob(blob, filename, type){
+  const file=new File([blob],filename,{type});
+  if(isTouch() && navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file],title:filename}); return; }catch(e){ if(e.name==='AbortError') return; }
+  }
+  const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(url); a.remove();},200);
+}
+const sharePdf=(b,f)=>shareBlob(b,f,'application/pdf');
+const shareCsv=(b,f)=>shareBlob(b,f,'text/csv');
+function exportXlsx(rows, sheetName, filename){
+  const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,sheetName||'Sheet1');
+  const out=XLSX.write(wb,{type:'array',bookType:'xlsx'});
+  shareBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), filename);
+}
+
+/* ============================================================
+   ToolHound import pipeline (client-side)
+   ============================================================ */
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+function blankAsset(){ return {item_id:'',serial:'',part_no:'',description:'',category:'',unit_cost:0,po:'',issued_date:'',assigned_to:'',status:'On Site',notes:'',qty:1,verified:'',verifiedAt:null,source:'manual'}; }
+
+function openImport(){
+  modal(modalCard(`
+   <div class="p-lg">
+     <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-primary">Import ToolHound Report</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+     <p class="font-body-sm text-on-surface-variant mb-md">Upload a ToolHound export — <b>CSV/Excel preferred</b>. PDF is supported but always review parsed rows before committing.</p>
+     <label class="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-lg p-xl cursor-pointer hover:bg-surface-container">
+       <span class="material-symbols-outlined text-[40px] text-outline mb-sm">cloud_upload</span>
+       <span class="font-label-md text-primary">Choose file (.csv .xlsx .xls .pdf)</span>
+       <input id="impFile" type="file" accept=".csv,.xlsx,.xls,.pdf" class="hidden">
+     </label>
+     <div id="impStatus" class="mt-md font-body-sm text-on-surface-variant"></div>
+   </div>`,'max-w-2xl'));
+  document.getElementById('impFile').addEventListener('change', handleImportFile);
+}
+
+async function handleImportFile(e){
+  const file=e.target.files[0]; if(!file) return;
+  const st=document.getElementById('impStatus'); st.textContent='Parsing '+file.name+'…';
+  try{
+    const ext=file.name.split('.').pop().toLowerCase();
+    let parsed;
+    if(ext==='pdf') parsed=await parsePdfReport(file);
+    else parsed=await parseSpreadsheetReport(file);
+    if(!parsed.items.length){ st.innerHTML='<span class="text-error">No rows parsed. Check the file format.</span>'; return; }
+    const diff=diffImport(parsed.items);
+    showImportReview(file.name, parsed, diff);
+  }catch(err){ console.error(err); st.innerHTML='<span class="text-error">Parse failed: '+esc(err.message)+'</span>'; }
+}
+
+function buildHeaderMap(headerRow){ const m={}; (headerRow||[]).forEach((c,i)=>{ const k=String(c==null?'':c).toLowerCase().trim(); if(k && !(k in m)) m[k]=i; }); return m; }
+function colGet(row,hmap,names){ for(const n of names){ for(const hdr in hmap){ if(hdr.includes(n)){ const idx=hmap[hdr]; if(idx<row.length){ const v=row[idx]; return v==null?'':String(v).trim(); } } } } return ''; }
+function isCategoryRow(row){ const ne=row.map(c=>String(c==null?'':c).trim()).filter(Boolean); if(ne.length>2||ne.length===0) return false; return !ne.some(c=>{ const s=c.replace(/[$,.]/g,''); return s.length>0 && /^\d+$/.test(s); }); }
+function findHeader(rows){
+  for(let i=0;i<rows.length;i++){
+    const lower=rows[i].map(c=>String(c==null?'':c).toLowerCase().trim());
+    const has=t=>lower.some(c=>c.includes(t));
+    if(has('qty outstanding')) return {type:'issues',idx:i};
+    if(has('transaction type')&&has('return status')) return {type:'transaction',idx:i};
+    if(has('part no')||has('monthly')||has('description')) return {type:'rental',idx:i};
+  }
+  return null;
+}
+
+async function parseSpreadsheetReport(file){
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+  const hdr=findHeader(rows);
+  if(!hdr) return {type:'unknown',items:[],warnings:['Could not detect a ToolHound header row.']};
+  const hmap=buildHeaderMap(rows[hdr.idx]);
+  const items=[]; let cat='Unknown';
+  for(let i=hdr.idx+1;i<rows.length;i++){
+    const row=rows[i]; if(!row||!row.some(c=>String(c==null?'':c).trim())) continue;
+    if(hdr.type==='rental' && isCategoryRow(row)){ cat=row.map(c=>String(c==null?'':c).trim()).filter(Boolean).join(' '); continue; }
+    const it=mapRow(row,hmap,hdr.type,cat); if(it) items.push(it);
+  }
+  return {type:hdr.type, items, warnings:[]};
+}
+
+function mapRow(row,hmap,type,cat){
+  if(type==='rental'){
+    const part=colGet(row,hmap,['part no','part']); const desc=colGet(row,hmap,['description','desc']);
+    if(!part && !desc) return null;
+    return normalize({ item_id:'', part_no:part, serial:'', description:desc, category:cat,
+      unit_cost:num(colGet(row,hmap,['monthly'])), qty:num(colGet(row,hmap,['qty','quantity']))||1,
+      issued_date:colGet(row,hmap,['end date','end']), assigned_to:'', _status:'On Site' }, 'rental');
+  }
+  const item_id=colGet(row,hmap,['item id']); const part=colGet(row,hmap,['part no']); const desc=colGet(row,hmap,['description']);
+  if(!item_id && !part && !desc) return null;
+  if(type==='issues'){
+    return normalize({ item_id, part_no:part, serial:colGet(row,hmap,['serial number','serial']), description:desc,
+      category:colGet(row,hmap,['category']), unit_cost:num(colGet(row,hmap,['unit cost'])),
+      qty:parseInt(num(colGet(row,hmap,['qty outstanding','qty'])))||1, issued_date:colGet(row,hmap,['transaction date']),
+      assigned_to:colGet(row,hmap,['job']), po:colGet(row,hmap,['po']), _status:'On Site' }, 'issues');
+  }
+  // transaction
+  const rt=colGet(row,hmap,['return status']).toLowerCase(); const tt=colGet(row,hmap,['transaction type']).toLowerCase();
+  let status='On Site'; if(tt.includes('return')||rt.includes('return')||rt==='closed') status='Returned';
+  return normalize({ item_id, part_no:part, serial:colGet(row,hmap,['serial']), description:desc,
+    category:colGet(row,hmap,['category']), unit_cost:num(colGet(row,hmap,['unit cost'])),
+    qty:parseInt(num(colGet(row,hmap,['qty'])))||1, issued_date:colGet(row,hmap,['transaction date']),
+    assigned_to:colGet(row,hmap,['job']), _status:status }, 'transaction');
+}
+
+function normalize(r, source){
+  return { item_id:r.item_id||'', serial:r.serial||'', part_no:r.part_no||'', description:r.description||'',
+    category:r.category||'', unit_cost:num(r.unit_cost), po:r.po||'', issued_date:r.issued_date||'',
+    assigned_to:r.assigned_to||'', status:r._status||'On Site', notes:'', qty:parseInt(r.qty)||1, source };
+}
+
+async function parsePdfReport(file){
+  if(!window.pdfjsLib) throw new Error('PDF library not loaded');
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  const lines=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p); const tc=await page.getTextContent();
+    const byY={};
+    tc.items.forEach(it=>{ const y=Math.round(it.transform[5]); (byY[y]=byY[y]||[]).push(it); });
+    Object.keys(byY).map(Number).sort((a,b)=>b-a).forEach(y=>{
+      const its=byY[y].sort((a,b)=>a.transform[4]-b.transform[4]);
+      const txt=its.map(i=>i.str).join(' ').replace(/\s+/g,' ').trim(); if(txt) lines.push(txt);
+    });
+  }
+  // Best-effort rental row parse: split on 2+ spaces; ToolHound rental columns
+  const items=[]; let cat='Unknown';
+  for(const line of lines){
+    const parts=line.split(/\s{2,}|\t/).map(s=>s.trim()).filter(Boolean);
+    if(parts.length<=2 && !/\d/.test(line)){ cat=line; continue; }
+    if(parts.length<5) continue;
+    if(/^(part no|category|description)$/i.test(parts[0])) continue;
+    // part_no, trans_no, description, end_date, daily, weekly, monthly, sell, type, qty, total
+    const rest=parts.slice(3);
+    const it=normalize({ item_id:'', part_no:parts[0], description:parts[2]||'', category:cat,
+      unit_cost:num(rest[3]||''), qty:parseInt(num(rest[6]||''))||1, _status:'On Site' }, 'pdf');
+    it._raw=line; it._review=true;
+    items.push(it);
+  }
+  return {type:'pdf', items, warnings:['PDF parsing is best-effort — review every row before committing.']};
+}
+
+function diffImport(items){
+  const existing=state.assets||{}; const seen=new Set(); const added=[],updated=[],removed=[];
+  items.forEach(it=>{
+    const key=assetKey(it.item_id,it.part_no,it.description); it._key=key; it._include=true; seen.add(key);
+    if(existing[key]) updated.push({key,cur:existing[key],next:it}); else added.push({key,next:it});
+  });
+  Object.entries(existing).forEach(([k,a])=>{ if(onSite(a)&&!seen.has(k)){ removed.push({key:k,cur:a,_include:false}); } });
+  return {added,updated,removed};
+}
+
+function showImportReview(fileName, parsed, diff){
+  window._importDiff=diff; window._importMeta={fileName,type:parsed.type};
+  const warn = parsed.warnings&&parsed.warnings.length ? `<div class="bg-error-container text-on-error-container rounded p-sm mb-md font-body-sm">${esc(parsed.warnings.join(' '))}</div>` : '';
+  const addRows=diff.added.map((x,i)=>impRow('added',i,x)).join('');
+  const updRows=diff.updated.map((x,i)=>impRow('updated',i,x)).join('');
+  const remRows=diff.removed.map((x,i)=>impRow('removed',i,x)).join('');
+  modal(modalCard(`
+    <div class="p-lg">
+      <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-primary">Review Import — ${esc(fileName)}</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+      <p class="font-body-sm text-on-surface-variant mb-md">Detected <b>${esc(parsed.type)}</b> report · ${diff.added.length} new · ${diff.updated.length} updates · ${diff.removed.length} not in report. Untick anything you don't want.</p>
+      ${warn}
+      ${diff.added.length?`<h4 class="font-label-md text-primary mt-md mb-xs">NEW TOOLS (${diff.added.length})</h4><div class="border border-outline-variant rounded divide-y divide-outline-variant max-h-[28vh] overflow-y-auto">${addRows}</div>`:''}
+      ${diff.updated.length?`<h4 class="font-label-md text-primary mt-md mb-xs">UPDATES (${diff.updated.length})</h4><div class="border border-outline-variant rounded divide-y divide-outline-variant max-h-[22vh] overflow-y-auto">${updRows}</div>`:''}
+      ${diff.removed.length?`<h4 class="font-label-md text-primary mt-md mb-xs">NOT IN REPORT — mark Returned? (${diff.removed.length})</h4><div class="border border-outline-variant rounded divide-y divide-outline-variant max-h-[18vh] overflow-y-auto">${remRows}</div>`:''}
+      <div class="flex gap-sm justify-end mt-lg">
+        <button class="px-md py-2 border border-outline-variant rounded font-label-md" data-action="close-modal">Cancel</button>
+        <button class="px-md py-2 bg-primary text-on-primary rounded font-label-md" data-action="imp-commit">Commit Import</button>
+      </div>
+    </div>`,'max-w-3xl'));
+}
+function impRow(section,i,x){
+  const a = section==='removed' ? x.cur : x.next;
+  const checked = section==='removed' ? (x._include?'checked':'') : 'checked';
+  const idTag = a.item_id || a.part_no || '—';
+  const sub = section==='updated' ? `<span class="font-body-sm text-on-surface-variant">${esc(x.cur.unit_cost)} → </span>` : '';
+  const raw = a._raw ? `<div class="font-body-sm text-outline mt-1 truncate" title="${esc(a._raw)}">${esc(a._raw)}</div>` : '';
+  return `<div class="flex items-center gap-sm p-sm">
+    <input type="checkbox" ${checked} onchange="impToggle('${section}',${i},this.checked)" class="w-4 h-4 accent-primary">
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-sm flex-wrap">
+        <span class="font-bold text-primary">${esc(idTag)}</span>
+        <input value="${esc(a.description)}" onchange="impEdit('${section}',${i},'description',this.value)" class="flex-1 min-w-[120px] border border-outline-variant rounded px-2 py-1 font-body-sm" placeholder="Description">
+      </div>${raw}
+    </div>
+    <input value="${esc(a.category)}" onchange="impEdit('${section}',${i},'category',this.value)" class="w-32 border border-outline-variant rounded px-2 py-1 font-body-sm" placeholder="Category" ${section==='removed'?'disabled':''}>
+    <div class="flex items-center gap-1">${sub}<input value="${esc(a.unit_cost)}" onchange="impEdit('${section}',${i},'unit_cost',this.value)" class="w-20 border border-outline-variant rounded px-2 py-1 font-body-sm text-right" placeholder="$/mo" ${section==='removed'?'disabled':''}></div>
+  </div>`;
+}
+function impToggle(section,i,v){ window._importDiff[section][i]._include=v; }
+function impEdit(section,i,field,val){ const x=window._importDiff[section][i]; const t=(section==='removed')?x.cur:x.next; t[field]= field==='unit_cost'?num(val):val; }
+
+async function commitImport(){
+  const d=window._importDiff, meta=window._importMeta; if(!d) return;
+  const updates={}; let add=0,upd=0,rem=0;
+  d.added.forEach(x=>{ if(x.next._include===false) return; const a={...blankAsset(),...stripMeta(x.next),createdAt:nowMs(),updatedAt:nowMs()}; updates[x.key]=a; add++; });
+  d.updated.forEach(x=>{ if(x.next._include===false) return; const a={...blankAsset(),...x.cur,...stripMeta(x.next),status:'On Site',verified:x.cur.verified||'',notes:x.cur.notes||'',createdAt:x.cur.createdAt||nowMs(),updatedAt:nowMs()}; updates[x.key]=a; upd++; });
+  d.removed.forEach(x=>{ if(!x._include) return; updates[x.key]={...x.cur,status:'Returned',updatedAt:nowMs()}; rem++; });
+  if(!add&&!upd&&!rem){ toast('Nothing selected','info'); return; }
+  try{
+    await fb.update('assets', updates);
+    await fb.push('imports', {file:meta.fileName,type:meta.type,addedCount:add,updatedCount:upd,removedCount:rem,at:nowMs()});
+    await fb.update('config', {lastImportAt:nowMs(), lastImportFile:meta.fileName});
+    closeModal(); toast(`Imported: ${add} new, ${upd} updated, ${rem} returned`,'success');
+  }catch(err){ console.error(err); toast('Import failed: '+err.message,'error'); }
+}
+function stripMeta(o){ const c={...o}; delete c._key; delete c._include; delete c._raw; delete c._review; return c; }
+
+/* ============================================================
+   View router
+   ============================================================ */
+const VIEWS = {
+  dashboard: renderDashboard,
+  assets:    renderAssets,
+  orders:    renderOrders,
+  audits:    renderAudits,
+  reports:   renderReports,
+  lost:      renderLost
+};
+function setView(v){ currentView=v; if(location.hash!=='#'+v){ try{location.hash=v;}catch(e){} } markNav(); renderCurrent(); window.scrollTo(0,0); }
+function renderCurrent(){ const fn=VIEWS[currentView]||renderDashboard; const root=document.getElementById('viewRoot'); try{ fn(root); }catch(e){ console.error(e); root.innerHTML='<div class="p-md text-error">Render error: '+esc(e.message)+'</div>'; } }
+function markNav(){
+  document.querySelectorAll('.navlink').forEach(a=>{
+    const on=a.dataset.view===currentView;
+    a.className='navlink flex items-center gap-sm px-sm py-xs rounded-lg transition-all active:translate-x-1 '+(on?'bg-secondary-container text-on-secondary-container font-bold':'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high');
+  });
+  document.querySelectorAll('.mnav').forEach(a=>{
+    const on=a.dataset.view===currentView;
+    a.className='mnav flex flex-col items-center justify-center px-3 py-1 active:scale-90 transition-transform '+(on?'bg-secondary-container text-on-secondary-container rounded-full':'text-on-surface-variant rounded');
+  });
+}
+
+function pageHeader(title, subtitle, actionsHtml){
+  return `<header class="mb-lg flex justify-between items-end flex-wrap gap-sm">
+    <div><h1 class="font-headline-xl text-headline-xl text-primary mb-xs">${esc(title)}</h1>
+    <p class="font-body-md text-on-surface-variant">${esc(subtitle||'')}</p></div>
+    <div class="flex gap-sm flex-wrap">${actionsHtml||''}</div></header>`;
+}
+function emptyState(icon,msg){ return `<div class="flex flex-col items-center justify-center text-center py-16 text-on-surface-variant">
+  <span class="material-symbols-outlined text-[48px] mb-sm text-outline">${icon}</span>
+  <p class="font-body-md">${esc(msg)}</p></div>`; }
+
+/* ---- placeholder views (fleshed out in later phases) ---- */
+function renderDashboard(root){
+  root.innerHTML = pageHeader('Dashboard', (state.config.projectName||'LACC Project')+' Overview') + `
+   <div class="grid grid-cols-2 lg:grid-cols-4 gap-gutter">
+     ${kpiCard('Total Assets', assetsArr().length, 'inventory_2')}
+     ${kpiCard('Monthly Charges', money(monthlyCharge()), 'payments')}
+     ${kpiCardErr('Tools Lost (all-time)', lostAllTime(), 'warning')}
+     ${kpiCard('Pending Orders', ordersArr().filter(o=>(o.status||'').toLowerCase()==='pending').length, 'local_shipping')}
+   </div>
+   <div class="mt-gutter">${ state.ready ? '' : emptyState('cloud_sync','Connecting…') }</div>`;
+}
+function kpiCard(label,val,icon){ return `<div class="bg-surface-container-lowest border border-outline-variant p-md rounded flex flex-col justify-between"><div class="flex justify-between items-start mb-sm"><span class="font-label-md text-on-surface-variant">${esc(label)}</span><span class="material-symbols-outlined text-outline">${icon}</span></div><div class="font-headline-xl text-headline-xl text-primary">${esc(val)}</div></div>`; }
+function kpiCardErr(label,val,icon){ return `<div class="bg-error-container border border-error p-md rounded flex flex-col justify-between cursor-pointer" data-action="goto-lost"><div class="flex justify-between items-start mb-sm"><span class="font-label-md text-on-error-container">${esc(label)}</span><span class="material-symbols-outlined text-error">${icon}</span></div><div class="font-headline-xl text-headline-xl text-error">${esc(val)}</div></div>`; }
+
+function val(id){ const e=document.getElementById(id); return e?e.value:''; }
+
+/* ---------- Inventory / Assets ---------- */
+let assetStatusFilter='', assetQuery='';
+function renderAssets(root){
+  const arr=assetsArr();
+  const filtered=arr.filter(a=>{
+    if(assetStatusFilter && (a.status||'')!==assetStatusFilter) return false;
+    if(assetQuery){ const h=[a.item_id,a.serial,a.description,a.category,a.assigned_to,a.part_no].join(' ').toLowerCase(); if(!h.includes(assetQuery)) return false; }
+    return true;
+  }).sort((a,b)=>String(a.item_id||a.description).localeCompare(String(b.item_id||b.description)));
+  const chips=['','On Site','Transferred','Returned','Lost','Damaged'].map(s=>`<button data-action="asset-filter" data-st="${esc(s)}" class="chip ${assetStatusFilter===s?'on':''}">${s||'All'}</button>`).join('');
+  root.innerHTML = pageHeader('Inventory Registry', filtered.length+' of '+arr.length+' assets · '+money(monthlyCharge())+'/mo on site',
+    `<button class="btn-ghost" data-action="open-import"><span class="material-symbols-outlined text-[18px]">upload_file</span>Import</button>
+     <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button>
+     <button class="btn-primary" data-action="add-tool"><span class="material-symbols-outlined text-[18px]">add</span>Add Tool</button>`)
+  + `<div class="flex flex-wrap gap-sm items-center mb-md">
+       <div class="relative flex-1 min-w-[200px]"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+       <input id="assetSearch" value="${esc(assetQuery)}" oninput="assetQuery=this.value.toLowerCase();renderCurrent();setTimeout(()=>{var e=document.getElementById('assetSearch');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}})" placeholder="Search ID, serial, description, foreman…" class="ipt pl-9"></div>
+       <div class="flex gap-1 flex-wrap">${chips}</div>
+     </div>`
+  + (filtered.length ? `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-x-auto"><table class="ttable"><thead><tr>
+       <th>Asset ID</th><th>Name / Model</th><th>Status</th><th class="text-right">$/mo</th><th>Assigned</th><th class="text-center">Verified</th><th></th></tr></thead><tbody>`
+     + filtered.map(a=>`<tr data-action="asset-edit" data-key="${esc(a._key)}">
+         <td class="font-bold text-primary">${esc(a.item_id||a.part_no||'—')}</td>
+         <td><div class="font-semibold">${esc(a.description||'—')}</div><div class="font-body-sm text-on-surface-variant">${esc(a.category||'')}${a.source?' · '+esc(a.source):''}</div></td>
+         <td>${statusBadge(a.status)}</td>
+         <td class="text-right font-bold">${a.unit_cost?money2(a.unit_cost):'—'}</td>
+         <td>${esc(a.assigned_to||'—')}</td>
+         <td class="text-center">${(a.verified||'')==='Yes'?'<span class="material-symbols-outlined text-[18px]" style="color:#166534">check_circle</span>':((a.verified||'')==='Missing'?'<span class="material-symbols-outlined text-[18px]" style="color:#ba1a1a">cancel</span>':'<span class="text-outline">—</span>')}</td>
+         <td><span class="material-symbols-outlined text-on-surface-variant">chevron_right</span></td></tr>`).join('')
+     + `</tbody></table></div>`
+     : emptyState('inventory_2', arr.length? 'No assets match the filter.' : 'No assets yet — Import a ToolHound report or Add a Tool.'));
+}
+
+function openAddTool(){
+  modal(modalCard(`<div class="p-lg">
+    <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-primary">Add Tool On-Site</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+    <p class="font-body-sm text-on-surface-variant mb-md">For extra tools found on site that aren't on a ToolHound report.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+      <div class="sm:col-span-2"><label class="lbl">Tool Type / Description</label><input id="atDesc" class="ipt" placeholder="e.g. DeWalt 20V Hammer Drill" oninput="atAutoCat()"></div>
+      <div><label class="lbl">Tool # (Item ID)</label><input id="atId" class="ipt" placeholder="e.g. DRL-901"></div>
+      <div><label class="lbl">Monthly Cost ($)</label><input id="atCost" type="number" step="0.01" class="ipt" placeholder="0.00"></div>
+      <div><label class="lbl">Category</label><input id="atCat" class="ipt" oninput="this._t=1" placeholder="auto from type"></div>
+      <div><label class="lbl">Assigned To</label><input id="atFm" class="ipt" placeholder="Foreman / area"></div>
+      <div><label class="lbl">Qty</label><input id="atQty" type="number" class="ipt" value="1"></div>
+      <div><label class="lbl">Serial (optional)</label><input id="atSerial" class="ipt"></div>
+    </div>
+    <div class="flex gap-sm justify-end mt-lg"><button class="btn-ghost" data-action="close-modal">Cancel</button><button class="btn-primary" data-action="add-tool-save">Add Tool</button></div>
+  </div>`,'max-w-xl'));
+}
+function atAutoCat(){ const d=val('atDesc'); const el=document.getElementById('atCat'); if(el && !el._t){ el.value=d.trim()?_categoryFor(d.toUpperCase(),''):''; } }
+async function saveAddTool(){
+  const desc=val('atDesc').trim(); if(!desc){ toast('Description required','error'); return; }
+  const item_id=val('atId').trim();
+  const a={...blankAsset(), item_id, description:desc, category:val('atCat').trim()||_categoryFor(desc.toUpperCase(),''),
+    unit_cost:num(val('atCost')), assigned_to:val('atFm').trim(), qty:parseInt(val('atQty'))||1, serial:val('atSerial').trim(),
+    status:'On Site', source:'manual', createdAt:nowMs(), updatedAt:nowMs()};
+  const key=assetKey(item_id,'',desc);
+  try{ await fb.update('assets',{[key]:a}); closeModal(); toast('Tool added','success'); setView('assets'); }
+  catch(e){ toast('Failed: '+e.message,'error'); }
+}
+
+function openAssetEdit(key){
+  const a=state.assets[key]; if(!a) return;
+  const opts=['On Site','Transferred','Returned','Lost','Damaged'].map(s=>`<option ${a.status===s?'selected':''}>${s}</option>`).join('');
+  modal(modalCard(`<div class="p-lg">
+    <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-primary">${esc(a.item_id||a.description||'Asset')}</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+      <div class="sm:col-span-2"><label class="lbl">Description</label><input id="aeDesc" class="ipt" value="${esc(a.description)}"></div>
+      <div><label class="lbl">Category</label><input id="aeCat" class="ipt" value="${esc(a.category)}"></div>
+      <div><label class="lbl">Status</label><select id="aeStatus" class="ipt">${opts}</select></div>
+      <div><label class="lbl">Monthly Cost ($)</label><input id="aeCost" type="number" step="0.01" class="ipt" value="${esc(a.unit_cost)}"></div>
+      <div><label class="lbl">Assigned To</label><input id="aeFm" class="ipt" value="${esc(a.assigned_to)}"></div>
+      <div><label class="lbl">Qty</label><input id="aeQty" type="number" class="ipt" value="${esc(a.qty)}"></div>
+      <div><label class="lbl">Serial</label><input id="aeSerial" class="ipt" value="${esc(a.serial)}"></div>
+      <div class="sm:col-span-2"><label class="lbl">Notes</label><input id="aeNotes" class="ipt" value="${esc(a.notes)}"></div>
+    </div>
+    <div class="flex gap-sm justify-between mt-lg flex-wrap">
+      <div class="flex gap-sm"><button class="btn-danger" data-action="asset-delete" data-key="${esc(key)}">Delete</button>
+      ${(a.status||'')!=='Lost'?`<button class="btn-ghost" style="color:#ba1a1a;border-color:#ba1a1a" data-action="asset-marklost" data-key="${esc(key)}">Mark Lost</button>`:''}</div>
+      <div class="flex gap-sm"><button class="btn-ghost" data-action="close-modal">Cancel</button><button class="btn-primary" data-action="asset-save" data-key="${esc(key)}">Save</button></div>
+    </div>
+  </div>`,'max-w-xl'));
+}
+async function saveAssetEdit(key){
+  const a=state.assets[key]; if(!a) return;
+  const patch={ description:val('aeDesc').trim(), category:val('aeCat').trim(), status:val('aeStatus'),
+    unit_cost:num(val('aeCost')), assigned_to:val('aeFm').trim(), qty:parseInt(val('aeQty'))||1, serial:val('aeSerial').trim(), notes:val('aeNotes').trim(), updatedAt:nowMs() };
+  try{ await fb.update('assets/'+key, patch); closeModal(); toast('Saved','success'); }catch(e){ toast('Failed: '+e.message,'error'); }
+}
+async function deleteAsset(key){ if(!await requirePin()) return; try{ await fb.remove('assets/'+key); closeModal(); toast('Deleted','success'); }catch(e){ toast('Failed: '+e.message,'error'); } }
+
+async function markLostKeys(keys, by){
+  const updates={}; const log=[]; const date=todayStr();
+  keys.forEach(k=>{ const a=state.assets[k]; if(!a) return; updates[k]={...a,status:'Lost',updatedAt:nowMs()}; log.push({date,item_id:a.item_id||'',serial:a.serial||'',description:a.description||'',category:a.category||'',unit_cost:num(a.unit_cost),markedBy:by||'Manager',at:nowMs()}); });
+  if(!log.length) return 0;
+  await fb.update('assets',updates);
+  for(const e of log){ await fb.push('lostLog', e); }
+  await fb.inc('counters/lostAllTime', log.length);
+  return log.length;
+}
+
+/* ---------- Orders + receiving ---------- */
+let orderFilter='';
+function renderOrders(root){
+  const arr=ordersArr().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const filtered=arr.filter(o=>!orderFilter||(o.status||'')===orderFilter);
+  const chips=['','Pending','Delivered','Cancelled'].map(s=>`<button data-action="order-filter" data-st="${esc(s)}" class="chip ${orderFilter===s?'on':''}">${s||'All'}</button>`).join('');
+  root.innerHTML = pageHeader('Orders & Receiving', arr.filter(o=>(o.status||'')==='Pending').length+' pending',
+    `<button class="btn-primary" data-action="order-new"><span class="material-symbols-outlined text-[18px]">add</span>New Order</button>`)
+  + `<div class="flex gap-1 flex-wrap mb-md">${chips}</div>`
+  + (filtered.length ? `<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">`+filtered.map(o=>orderCard(o)).join('')+`</div>` : emptyState('local_shipping','No orders. Create one with New Order.'));
+}
+function orderCard(o){
+  const st=(o.status||'Pending'); const c={'Pending':'#fd651e','Delivered':'#166534','Cancelled':'#6d7589'}[st]||'#6d7589';
+  return `<div class="bg-surface-container-lowest border border-outline-variant rounded relative overflow-hidden">
+    <div class="h-1 w-full" style="background:${c}"></div>
+    <div class="p-md">
+      <div class="flex justify-between items-start mb-sm">
+        <div><div class="font-headline-md text-primary">${esc(o.description||'Order')}</div><div class="font-body-sm text-on-surface-variant">${esc(o.po?('PO '+o.po+' · '):'')}${esc(o.employee||'')}</div></div>
+        <span class="inline-flex items-center px-2 py-1 rounded-DEFAULT font-label-sm text-white" style="background:${c}">${esc(st)}</span>
+      </div>
+      <div class="grid grid-cols-3 gap-sm font-body-sm mb-md">
+        <div><div class="lbl">Qty</div>${esc(o.qty||'—')}</div>
+        <div><div class="lbl">Needed</div>${esc(o.date_needed||'—')}</div>
+        <div><div class="lbl">Ordered</div>${esc(o.order_date||'—')}</div>
+      </div>
+      <div class="flex gap-sm flex-wrap">
+        ${st==='Pending'?`<button class="btn-primary" data-action="order-receive" data-key="${esc(o._key)}"><span class="material-symbols-outlined text-[18px]">where_to_vote</span>Mark Arrived</button>
+          <button class="btn-ghost" data-action="order-cancel" data-key="${esc(o._key)}">Cancel</button>`:''}
+        ${st==='Delivered'?`<button class="btn-ghost" data-action="order-toinv" data-key="${esc(o._key)}"><span class="material-symbols-outlined text-[18px]">add_box</span>Add to Inventory</button>`:''}
+      </div>
+    </div></div>`;
+}
+function openOrderForm(){
+  modal(modalCard(`<div class="p-lg">
+    <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-primary">New Order</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+      <div class="sm:col-span-2"><label class="lbl">Description</label><input id="odDesc" class="ipt" placeholder="What is being ordered"></div>
+      <div><label class="lbl">Qty</label><input id="odQty" type="number" class="ipt" value="1"></div>
+      <div><label class="lbl">Date Needed</label><input id="odNeeded" type="date" class="ipt"></div>
+      <div><label class="lbl">PO #</label><input id="odPo" class="ipt"></div>
+      <div><label class="lbl">Requested By</label><input id="odEmp" class="ipt"></div>
+    </div>
+    <div class="flex gap-sm justify-end mt-lg"><button class="btn-ghost" data-action="close-modal">Cancel</button><button class="btn-primary" data-action="order-save">Create Order</button></div>
+  </div>`,'max-w-xl'));
+}
+async function saveOrder(){
+  const desc=val('odDesc').trim(); if(!desc){ toast('Description required','error'); return; }
+  const o={ description:desc, qty:parseInt(val('odQty'))||1, date_needed:val('odNeeded'), po:val('odPo').trim(), employee:val('odEmp').trim(),
+    primary_id:'', unit:'', notes:'', status:'Pending', order_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs() };
+  try{ await fb.push('orders', o); closeModal(); toast('Order created','success'); }catch(e){ toast('Failed: '+e.message,'error'); }
+}
+async function orderSetStatus(key,status){ try{ await fb.update('orders/'+key,{status,updatedAt:nowMs()}); toast('Order '+status,'success'); }catch(e){ toast('Failed','error'); } }
+async function orderToInventory(key){
+  const o=state.orders[key]; if(!o) return;
+  const a={...blankAsset(), item_id:o.primary_id||'', description:o.description||'', unit_cost:0, qty:parseInt(o.qty)||1, po:o.po||'', status:'On Site', source:'manual', issued_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs()};
+  const k=assetKey(a.item_id,'',a.description);
+  try{ await fb.update('assets',{[k]:a}); toast('Added to inventory','success'); }catch(e){ toast('Failed','error'); }
+}
+
+/* ---------- On-site audit / verify ---------- */
+let auditFilter='all';
+function renderAudits(root){
+  const onsite=assetsArr().filter(onSite).sort((a,b)=>String(a.item_id||a.description).localeCompare(String(b.item_id||b.description)));
+  const total=onsite.length; const verified=onsite.filter(a=>(a.verified||'')==='Yes').length; const missing=onsite.filter(a=>(a.verified||'')==='Missing').length;
+  const pct=total?Math.round(verified/total*100):0;
+  let list=onsite;
+  if(auditFilter==='unverified') list=onsite.filter(a=>!(a.verified||''));
+  else if(auditFilter==='verified') list=onsite.filter(a=>(a.verified||'')==='Yes');
+  else if(auditFilter==='missing') list=onsite.filter(a=>(a.verified||'')==='Missing');
+  const chips=[['all','All'],['unverified','Unverified'],['verified','Verified'],['missing','Missing']].map(([k,l])=>`<button data-action="audit-filter" data-st="${k}" class="chip ${auditFilter===k?'on':''}">${l}</button>`).join('');
+  root.innerHTML = pageHeader('On-Site Audit', verified+' / '+total+' verified · '+missing+' missing',
+    `<button class="btn-ghost" data-action="audit-reset">Reset</button><button class="btn-primary" data-action="audit-summary"><span class="material-symbols-outlined text-[18px]">summarize</span>Generate Summary</button>`)
+  + `<div class="mb-md"><div class="w-full bg-outline-variant h-2 rounded-full overflow-hidden"><div style="width:${pct}%;background:#000;height:100%"></div></div></div>`
+  + `<div class="flex gap-1 flex-wrap mb-md">${chips}</div>`
+  + (list.length ? `<div class="flex flex-col gap-sm">`+list.map(a=>auditCard(a)).join('')+`</div>` : emptyState('fact_check', total?'Nothing in this filter.':'No on-site tools to audit yet.'));
+}
+function auditCard(a){
+  const v=(a.verified||''); const isV=v==='Yes', isM=v==='Missing';
+  return `<div class="bg-surface-container-lowest border ${isM?'border-error':'border-outline-variant'} rounded-lg flex items-stretch overflow-hidden ${isM?'':''}">
+    <div class="p-sm border-r border-outline-variant flex items-center justify-center w-16 ${isM?'bg-error-container':'bg-surface-container-low'}">
+      <input type="checkbox" class="industrial-checkbox" ${isV?'checked':''} aria-label="Verify ${esc(a.description)}" onchange="dispatchAction(this.checked?'audit-verify':'audit-unverify', {dataset:{key:'${esc(a._key)}'}})">
+    </div>
+    <div class="p-md flex-grow flex flex-col sm:flex-row sm:items-center justify-between gap-sm">
+      <div><div class="font-label-sm text-on-surface-variant uppercase tracking-widest">${esc(a.item_id||a.part_no||'—')}</div>
+        <div class="font-headline-md text-primary ${isV?'line-through opacity-70':''}">${esc(a.description||'—')}</div>
+        <div class="font-body-sm text-on-surface-variant">${esc(a.category||'')}${a.assigned_to?' · '+esc(a.assigned_to):''}${isV&&a.verifiedAt?' · verified':''}</div></div>
+      <div class="flex gap-sm">
+        ${isM?`<button class="btn-ghost" data-action="audit-found" data-key="${esc(a._key)}">Found It</button>`
+            :`<button class="btn-ghost" style="color:#ba1a1a;border-color:#ba1a1a" data-action="audit-missing" data-key="${esc(a._key)}"><span class="material-symbols-outlined text-[18px]">warning</span>Mark Missing</button>`}
+      </div>
+    </div></div>`;
+}
+async function setVerified(key,v){ const patch={verified:v, verifiedAt:v?nowMs():null}; try{ await fb.update('assets/'+key,patch);}catch(e){ toast('Failed','error'); } }
+
+/* ---------- Exports (Excel; PDFs in phase 5) ---------- */
+function exportAssetsXlsx(){
+  const rows=assetsArr().map(a=>({ 'Item ID':a.item_id,'Serial':a.serial,'Part No':a.part_no,'Description':a.description,'Category':a.category,'Monthly Cost':num(a.unit_cost),'Status':a.status,'Assigned To':a.assigned_to,'Qty':a.qty,'Verified':a.verified,'PO':a.po,'Source':a.source }));
+  if(!rows.length){ toast('No assets','info'); return; }
+  exportXlsx(rows,'Assets','EquipTrack Assets '+todayStr()+'.xlsx');
+}
+
+/* ---------- Phase-4 action dispatch ---------- */
+function dispatchAction4(a, el){
+  const key=el&&el.dataset?el.dataset.key:'';
+  switch(a){
+    case 'asset-filter': assetStatusFilter=el.dataset.st; renderCurrent(); return true;
+    case 'asset-edit': openAssetEdit(key); return true;
+    case 'asset-save': saveAssetEdit(key); return true;
+    case 'asset-delete': deleteAsset(key); return true;
+    case 'asset-marklost': (async()=>{ if(!await requirePin())return; const n=await markLostKeys([key],'Manager'); closeModal(); toast(n+' marked lost','success'); })(); return true;
+    case 'add-tool-save': saveAddTool(); return true;
+    case 'export-assets-xlsx': exportAssetsXlsx(); return true;
+    case 'order-filter': orderFilter=el.dataset.st; renderCurrent(); return true;
+    case 'order-new': openOrderForm(); return true;
+    case 'order-save': saveOrder(); return true;
+    case 'order-receive': orderSetStatus(key,'Delivered'); return true;
+    case 'order-cancel': orderSetStatus(key,'Cancelled'); return true;
+    case 'order-toinv': orderToInventory(key); return true;
+    case 'audit-filter': auditFilter=el.dataset.st; renderCurrent(); return true;
+    case 'audit-verify': setVerified(key,'Yes'); return true;
+    case 'audit-unverify': setVerified(key,''); return true;
+    case 'audit-missing': setVerified(key,'Missing'); return true;
+    case 'audit-found': setVerified(key,''); return true;
+    case 'audit-summary': if(typeof buildOnSiteSummaryPdf==='function') buildOnSiteSummaryPdf(); else toast('Summary PDF — Phase 5','info'); return true;
+    case 'audit-reset': (async()=>{ if(!await requirePin())return; const u={}; assetsArr().forEach(a=>{ if(a.verified){ u[a._key+'/verified']=''; u[a._key+'/verifiedAt']=null; } }); await fb.update('assets',u); toast('Audit reset','success'); })(); return true;
+  }
+  return false;
+}
+/* ---------- Foreman Reports ---------- */
+function renderReports(root){
+  const onsite=assetsArr().filter(onSite);
+  const {buckets,excludedConsumableQty}=classifyAssets(assetsArr());
+  const visible=CATEGORY_NAMES.filter(n=>buckets[n].total>0);
+  const total=visible.reduce((s,n)=>s+buckets[n].total,0);
+  root.innerHTML = pageHeader('Foreman Reports', total+' tools on site across '+visible.length+' categories'+(excludedConsumableQty?' · +'+excludedConsumableQty+' bulk':''),'')
+  + `<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+      <div class="bg-surface-container-lowest border border-outline-variant rounded p-lg">
+        <div class="flex items-center gap-sm mb-sm"><span class="material-symbols-outlined text-secondary text-[28px]">checklist</span><h3 class="font-headline-md text-primary">Blank Count Checklist</h3></div>
+        <p class="font-body-md text-on-surface-variant mb-md">11×17 tabloid, bilingual EN/ES, with a blank COUNTED column. Print it, walk the site, count by hand — then enter counts in <b>Lost Tracker → Count &amp; Compare</b>.</p>
+        <button class="btn-primary" data-action="print-checklist"><span class="material-symbols-outlined text-[18px]">print</span>Generate 11×17 Checklist</button>
+      </div>
+      <div class="bg-surface-container-lowest border border-outline-variant rounded p-lg">
+        <div class="flex items-center gap-sm mb-sm"><span class="material-symbols-outlined text-primary text-[28px]">description</span><h3 class="font-headline-md text-primary">Foreman Summary Report</h3></div>
+        <p class="font-body-md text-on-surface-variant mb-md">Filled asset list grouped by category with status + signature lines, for the record.</p>
+        <div class="flex gap-sm flex-wrap"><button class="btn-primary" data-action="print-summary"><span class="material-symbols-outlined text-[18px]">print</span>Generate Summary</button>
+        <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button></div>
+      </div>
+    </div>`;
+}
+
+/* ---------- Lost Tracker (history + reconcile/compare) ---------- */
+let lostTab='history', lostCounts={}, lostSel={}, lostExpanded={}, lostMissingOnly=false;
+function renderLost(root){
+  const tabs=`<div class="flex gap-1 mb-md">
+    <button data-action="lost-tab" data-t="history" class="chip ${lostTab==='history'?'on':''}">History</button>
+    <button data-action="lost-tab" data-t="reconcile" class="chip ${lostTab==='reconcile'?'on':''}">Count &amp; Compare</button></div>`;
+  if(lostTab==='reconcile'){ renderReconcile(root, tabs); return; }
+  const lost=lostArr().sort((a,b)=>(b.at||0)-(a.at||0));
+  const value=lost.reduce((s,e)=>s+num(e.unit_cost),0);
+  root.innerHTML = pageHeader('Lost Tracker', lostAllTime()+' lost all-time',
+    `<button class="btn-ghost" data-action="export-lost-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button>
+     <button class="btn-primary" data-action="lost-report"><span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>Lost Report PDF</button>`)
+  + tabs
+  + `<div class="grid grid-cols-2 lg:grid-cols-3 gap-gutter mb-gutter">
+       ${kpiCard('Total Value Lost', money(value),'trending_down')}
+       ${kpiCard('Items Lost (all-time)', lostAllTime(),'warning')}
+       ${kpiCard('Currently Lost', assetsArr().filter(a=>(a.status||'')==='Lost').length,'inventory_2')}
+     </div>`
+  + (lost.length ? `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-x-auto"><table class="ttable"><thead><tr><th>Date</th><th>Item ID</th><th>Description</th><th>Category</th><th>Marked By</th><th class="text-right">Est. Value</th></tr></thead><tbody>`
+      + lost.map(e=>`<tr><td>${esc(e.date)}</td><td class="font-bold">${esc(e.item_id||'—')}</td><td>${esc(e.description)}</td><td class="font-body-sm text-on-surface-variant">${esc(e.category)}</td><td>${esc(e.markedBy||'')}</td><td class="text-right font-bold">${money2(num(e.unit_cost))}</td></tr>`).join('')
+      + `<tr style="background:#fbe4e4"><td colspan="5" class="text-right font-bold">TOTAL</td><td class="text-right font-bold" style="color:#7f1212">${money2(value)}</td></tr></tbody></table></div>`
+      : emptyState('search_off','No tools marked lost yet. Use Count & Compare to find missing tools.'));
+}
+function renderReconcile(root, tabs){
+  const groups=groupForReconcile(assetsArr());
+  let totalMissing=0;
+  let html=pageHeader('Count & Compare','Enter the counted qty from your 11×17. Short lines turn red — drill in and mark the lost IDs.','')+tabs;
+  html+=`<div class="flex gap-1 mb-md flex-wrap"><button data-action="recon-missing" class="chip ${lostMissingOnly?'on':''}">Missing only</button><button data-action="recon-expand" class="chip">Expand all</button><button data-action="recon-collapse" class="chip">Collapse all</button></div>`;
+  if(!groups.length){ root.innerHTML=html+emptyState('fact_check','No on-site tools to reconcile.'); return; }
+  let body='';
+  groups.forEach((g,ci)=>{
+    let catMissing=0; const lineRows=[];
+    g.lines.forEach((line,li)=>{ const key=ci+':'+li; const c=lostCounts[key]; const miss=(c===undefined||c==='')?0:Math.max(0,(line.expected||0)-num(c)); catMissing+=miss;
+      if(lostMissingOnly&&miss<=0) return; lineRows.push({line,li,key,miss}); });
+    totalMissing+=catMissing;
+    if(!lineRows.length) return;
+    const red=catMissing>0;
+    body+=`<tr style="background:${red?'#fdecec':'#eff4ff'}"><td colspan="4" class="font-bold" style="color:${red?'#b91c1c':'#0b1c30'}">${esc(g.category)} <span class="font-body-sm" style="color:#76777d">· ${g.total} on site${red?' · '+catMissing+' missing':''}</span></td></tr>`;
+    lineRows.forEach(({line,key,miss})=>{ const red2=miss>0; const exp=!!lostExpanded[key]; const counted=lostCounts[key]!==undefined?lostCounts[key]:'';
+      body+=`<tr ${red2?'style="background:#fff6f6"':''}><td style="padding-left:24px">${esc(line.label)}${line.flagged?' <span style="color:#fbbf24">⚑</span>':''}</td>
+        <td class="text-center font-bold">${line.expected}</td>
+        <td class="text-center"><input type="number" min="0" value="${esc(counted)}" onchange="lostCounts['${key}']=this.value;renderCurrent()" class="ipt" style="width:70px;text-align:center;${red2?'border-color:#b91c1c':''}"></td>
+        <td class="text-center font-bold" style="color:${red2?'#b91c1c':'#76777d'}">${red2?miss:'—'}</td></tr>`;
+      if(exp){ body+=`<tr><td colspan="4" style="background:#fafafa"><div class="flex flex-wrap gap-2 py-1">`+
+        line.tools.map(t=>{ const sel=!!lostSel[t._key]; const cost=num(t.unit_cost);
+          return `<label class="inline-flex items-center gap-1 px-2 py-1 rounded cursor-pointer" style="border:1px solid ${sel?'#b91c1c':'#ccc'};background:${sel?'#fde2e2':'#fff'};font-size:11px"><input type="checkbox" ${sel?'checked':''} onchange="lostSel['${t._key}']=this.checked;if(!this.checked)delete lostSel['${t._key}'];updateReconBar()" style="accent-color:#b91c1c"><b>${esc(t.item_id||'—')}</b>${cost?' $'+cost:''}</label>`;
+        }).join('')+`</div></td></tr>`;
+      } else {
+        body+=`<tr><td colspan="4" style="padding-left:24px"><button data-action="recon-expand-line" data-key="${key}" class="chip">▸ ${line.tools.length} IDs</button></td></tr>`;
+      }
+    });
+  });
+  html+=`<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-x-auto mb-gutter"><table class="ttable"><thead><tr><th>Category / Line</th><th class="text-center">On Site</th><th class="text-center">Counted</th><th class="text-center">Missing</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  html+=`<div id="reconBar" class="bg-surface-container-lowest border border-outline-variant rounded p-md flex items-center justify-between" style="position:sticky;bottom:0">
+     <div><b id="reconCount">0</b> selected · est. <b id="reconVal">$0</b></div>
+     <div class="flex gap-sm"><button class="btn-ghost" data-action="recon-clear">Clear</button><button class="btn-danger" data-action="recon-confirm">Confirm Mark as Lost</button></div></div>`;
+  root.innerHTML=html;
+  updateReconBar();
+}
+function updateReconBar(){ const ids=Object.keys(lostSel).filter(k=>lostSel[k]); const cv=ids.reduce((s,k)=>s+num((state.assets[k]||{}).unit_cost),0);
+  const c=document.getElementById('reconCount'), v=document.getElementById('reconVal'); if(c)c.textContent=ids.length; if(v)v.textContent=money(cv); }
+
+/* ---------- Print: bilingual 11x17 + filled summary ---------- */
+function doPrint(html, pageCss){
+  document.getElementById('printRoot').innerHTML='<style>'+(pageCss||'@page{size:landscape;margin:10mm}')+'</style>'+html;
+  window.print();
+}
+window.onafterprint=()=>{ document.getElementById('printRoot').innerHTML=''; };
+function printChecklist(){
+  const {buckets,excludedConsumableQty}=classifyAssets(assetsArr());
+  const visible=CATEGORY_NAMES.filter(n=>buckets[n].total>0);
+  const total=visible.reduce((s,n)=>s+buckets[n].total,0);
+  if(!total){ toast('No on-site tools to count','info'); return; }
+  let cols='';
+  visible.forEach(n=>{ const b=buckets[n]; cols+=`<div class="cat"><div class="cat-h"><span>${esc(n)}</span><span>${b.total}</span></div>`+
+    b.rows.map(r=>`<div class="ln"><span class="lab">${esc(r.label)}</span><span class="sys">${r.qty}</span><span class="box"></span></div>`).join('')+`</div>`; });
+  const html=`<div class="chk">
+   <div class="banner"><div><div class="kick">WEBCOR BUILDERS · ${esc(state.config.projectName||'LACC PROJECT')}</div><div class="title">TOOL COUNT — FIELD CHECKLIST</div><div class="sub">Conteo de Herramientas — Lista de Verificación</div></div><div class="date">${new Date().toLocaleDateString()}</div></div>
+   <div class="total">TOTAL TOOLS ON SITE · <i>Total de Herramientas en Sitio</i> <b>${total}</b><span>across ${visible.length} categories · en ${visible.length} categorías</span>${excludedConsumableQty?`<span> &nbsp;|&nbsp; + ${excludedConsumableQty} BULK MATERIALS · materiales a granel</span>`:''}</div>
+   <div class="cols">${cols}</div>
+   <div class="foot">COUNTED / CONTADO — write the quantity you physically count in the yellow box · escriba la cantidad que cuenta en la casilla amarilla. &nbsp; Source: Assets, On-Site status.</div>
+  </div>`;
+  const css=`@page{size:17in 11in;margin:9mm} *{box-sizing:border-box} .chk{font-family:Inter,Arial,sans-serif;color:#111}
+   .banner{display:flex;justify-content:space-between;align-items:center;background:#00703C;color:#fff;padding:10px 16px;border-radius:4px}
+   .kick{font-size:9px;font-weight:700;letter-spacing:.05em}.title{font-size:20px;font-weight:800}.sub{font-size:10px;font-style:italic}.date{font-size:13px;font-weight:700}
+   .total{background:#f0f6f3;border:1px solid #00703C;border-left:6px solid #00703C;margin:8px 0;padding:6px 14px;font-size:11px;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+   .total b{font-size:26px;color:#00703C;margin:0 8px}.total span{font-weight:400;color:#555;font-size:9px}
+   .cols{column-count:3;column-gap:14px}
+   .cat{break-inside:avoid;border:1px solid #ccc;border-radius:4px;margin-bottom:8px;overflow:hidden}
+   .cat-h{background:#e8efe9;font-weight:700;font-size:11px;padding:4px 8px;display:flex;justify-content:space-between}
+   .ln{display:flex;align-items:center;gap:6px;padding:3px 8px;border-top:1px solid #eee;font-size:10px}
+   .lab{flex:1}.sys{width:28px;text-align:right;color:#555}.box{width:46px;height:16px;border:1px solid #999;background:#fffce8;flex-shrink:0}
+   .foot{margin-top:8px;font-size:9px;color:#555;font-style:italic}`;
+  doPrint(html,css);
+}
+function printSummary(){
+  const arr=assetsArr().slice().sort((a,b)=>String(a.category).localeCompare(String(b.category))||String(a.item_id).localeCompare(String(b.item_id)));
+  if(!arr.length){ toast('No assets','info'); return; }
+  const onsite=arr.filter(onSite).length, lost=arr.filter(a=>(a.status||'')==='Lost').length;
+  const rows=arr.map(a=>`<tr><td>${esc(a.item_id||a.part_no||'—')}</td><td>${esc(a.description)}</td><td>${esc(a.category)}</td><td>${esc(a.assigned_to||'')}</td><td>${esc(a.status)}</td><td>${a.unit_cost?money2(a.unit_cost):''}</td><td></td></tr>`).join('');
+  const html=`<div class="sum">
+    <div class="banner"><div><div class="kick">WEBCOR BUILDERS · ${esc(state.config.projectName||'LACC PROJECT')}</div><div class="title">TOOL SUMMARY REPORT</div></div><div class="date">${new Date().toLocaleDateString()}</div></div>
+    <div class="stats"><div><b>${arr.length}</b> Total</div><div><b>${onsite}</b> On Site</div><div><b>${lost}</b> Lost</div><div><b>${money(monthlyCharge())}</b>/mo</div></div>
+    <table><thead><tr><th>Item ID</th><th>Description</th><th>Category</th><th>Assigned</th><th>Status</th><th>$/mo</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="sig"><div>Foreman: ____________________</div><div>Date: __________</div><div>Superintendent: ____________________</div></div>
+  </div>`;
+  const css=`@page{size:11in 8.5in;margin:10mm} *{box-sizing:border-box} .sum{font-family:Inter,Arial,sans-serif;color:#111;font-size:11px}
+   .banner{display:flex;justify-content:space-between;align-items:center;background:#00703C;color:#fff;padding:10px 16px;border-radius:4px}
+   .kick{font-size:9px;font-weight:700}.title{font-size:18px;font-weight:800}.date{font-size:13px;font-weight:700}
+   .stats{display:flex;gap:24px;margin:10px 0;font-size:12px}.stats b{font-size:18px;color:#00703C;margin-right:4px}
+   table{width:100%;border-collapse:collapse}th{background:#00522b;color:#fff;text-align:left;padding:4px 6px;font-size:9px}td{padding:4px 6px;border-bottom:1px solid #ddd}
+   tbody tr:nth-child(even){background:#f8faf9}
+   .sig{display:flex;gap:32px;margin-top:24px;font-size:11px}`;
+  doPrint(html,css);
+}
+
+/* ---------- jsPDF reports ---------- */
+function buildLostReportPdf(){
+  const { jsPDF }=window.jspdf; const doc=new jsPDF({orientation:'portrait',unit:'pt',format:'letter'});
+  const W=doc.internal.pageSize.getWidth();
+  const lost=lostArr().sort((a,b)=>(b.at||0)-(a.at||0));
+  const value=lost.reduce((s,e)=>s+num(e.unit_cost),0);
+  doc.setFillColor(185,28,28); doc.rect(0,0,W,64,'F');
+  doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text('LOST TOOLS REPORT',32,34);
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.text('WEBCOR BUILDERS · '+(state.config.projectName||'LACC PROJECT'),32,50);
+  doc.setFontSize(26); doc.setFont('helvetica','bold'); doc.text(String(lost.length),W-32,40,{align:'right'});
+  doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.text('TOOLS LOST',W-32,52,{align:'right'});
+  doc.setFillColor(127,18,18); doc.rect(0,64,W,30,'F'); doc.setTextColor(255); doc.setFont('helvetica','bold');
+  doc.setFontSize(11); doc.text('ESTIMATED REPLACEMENT VALUE',32,84); doc.setFontSize(15); doc.text(money2(value),W-32,84,{align:'right'});
+  doc.autoTable({ startY:108, head:[['Date','Item ID','Description','Category','Marked By','Est. Value']],
+    body: lost.map(e=>[e.date,e.item_id||'—',e.description,e.category,e.markedBy||'',money2(num(e.unit_cost))]),
+    foot:[['','','','','TOTAL',money2(value)]],
+    styles:{fontSize:8,cellPadding:4}, headStyles:{fillColor:[127,18,18]}, footStyles:{fillColor:[251,228,228],textColor:[127,18,18],fontStyle:'bold'},
+    columnStyles:{5:{halign:'right'}} });
+  doc.save('Lost Tools Report '+todayStr()+'.pdf');
+}
+function buildOnSiteSummaryPdf(){
+  const { jsPDF }=window.jspdf; const doc=new jsPDF({orientation:'portrait',unit:'pt',format:'letter'});
+  const W=doc.internal.pageSize.getWidth();
+  const onsite=assetsArr().filter(onSite).sort((a,b)=>String(a.category).localeCompare(String(b.category)));
+  const verified=onsite.filter(a=>(a.verified||'')==='Yes').length, missing=onsite.filter(a=>(a.verified||'')==='Missing').length;
+  doc.setFillColor(0,112,60); doc.rect(0,0,W,64,'F'); doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(18);
+  doc.text('ON-SITE AUDIT SUMMARY',32,34); doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.text('WEBCOR BUILDERS · '+(state.config.projectName||'LACC PROJECT')+' · '+new Date().toLocaleDateString(),32,50);
+  doc.setTextColor(0); doc.setFontSize(10); doc.text(`On site: ${onsite.length}    Verified: ${verified}    Missing: ${missing}    Monthly: ${money(monthlyCharge())}`,32,84);
+  doc.autoTable({ startY:98, head:[['Item ID','Description','Category','Assigned','Verified','$/mo']],
+    body: onsite.map(a=>[a.item_id||a.part_no||'—',a.description,a.category,a.assigned_to||'',(a.verified||'—'),a.unit_cost?money2(a.unit_cost):'']),
+    styles:{fontSize:8,cellPadding:3}, headStyles:{fillColor:[0,82,43]}, columnStyles:{5:{halign:'right'}} });
+  doc.save('On-Site Audit Summary '+todayStr()+'.pdf');
+}
+function exportLostXlsx(){ const rows=lostArr().sort((a,b)=>(b.at||0)-(a.at||0)).map(e=>({Date:e.date,'Item ID':e.item_id,Serial:e.serial,Description:e.description,Category:e.category,'Est. Value':num(e.unit_cost),'Marked By':e.markedBy}));
+  if(!rows.length){ toast('No lost tools','info'); return; } exportXlsx(rows,'Lost','Lost Tools '+todayStr()+'.xlsx'); }
+
+/* ---------- Phase-5 dispatch ---------- */
+function dispatchAction5(a, el){
+  const key=el&&el.dataset?el.dataset.key:'';
+  switch(a){
+    case 'print-checklist': printChecklist(); return true;
+    case 'print-summary': printSummary(); return true;
+    case 'lost-tab': lostTab=el.dataset.t; lostSel={}; renderCurrent(); return true;
+    case 'lost-report': buildLostReportPdf(); return true;
+    case 'export-lost-xlsx': exportLostXlsx(); return true;
+    case 'recon-missing': lostMissingOnly=!lostMissingOnly; renderCurrent(); return true;
+    case 'recon-expand': groupForReconcile(assetsArr()).forEach((g,ci)=>g.lines.forEach((l,li)=>lostExpanded[ci+':'+li]=true)); renderCurrent(); return true;
+    case 'recon-collapse': lostExpanded={}; renderCurrent(); return true;
+    case 'recon-expand-line': lostExpanded[key]=!lostExpanded[key]; renderCurrent(); return true;
+    case 'recon-clear': lostSel={}; renderCurrent(); return true;
+    case 'recon-confirm': (async()=>{ const ids=Object.keys(lostSel).filter(k=>lostSel[k]); if(!ids.length){toast('Tick the lost Item IDs first','info');return;} if(!await requirePin())return; const n=await markLostKeys(ids,'Manager'); lostSel={}; lostCounts={}; toast(n+' marked lost','success'); renderCurrent(); })(); return true;
+  }
+  return false;
+}
+
+/* ============================================================
+   Global click dispatch (data-action)
+   ============================================================ */
+document.addEventListener('click', e=>{
+  const nav=e.target.closest('[data-view]');
+  if(nav){ e.preventDefault(); setView(nav.dataset.view); return; }
+  const el=e.target.closest('[data-action]');
+  if(!el) return;
+  const a=el.dataset.action;
+  if(a==='pin-cancel'){ closeModal(); if(window._pinResolve){window._pinResolve(false);window._pinResolve=null;} return; }
+  if(a==='pin-ok'){ const v=document.getElementById('pinInput').value.trim(); if(v===effectivePin()){ _pinOk=true; closeModal(); if(window._pinResolve){window._pinResolve(true);window._pinResolve=null;} } else { toast('Wrong PIN','error'); } return; }
+  if(a==='close-modal'){ closeModal(); return; }
+  if(a==='goto-lost'){ setView('lost'); return; }
+  if(a==='add-tool'){ if(typeof openAddTool==='function') openAddTool(); else toast('Add Tool — Phase 4','info'); return; }
+  if(a==='open-import'){ if(typeof openImport==='function') openImport(); else toast('Import — Phase 3','info'); return; }
+  if(typeof dispatchAction==='function') dispatchAction(a, el, e);
+});
+
+/* ============================================================
+   Action dispatch (extended per phase)
+   ============================================================ */
+function dispatchAction(a, el, e){
+  if(a==='imp-commit'){ commitImport(); return; }
+  if(typeof dispatchAction4==='function' && dispatchAction4(a,el,e)) return;
+  if(typeof dispatchAction5==='function' && dispatchAction5(a,el,e)) return;
+}
+
+/* ============================================================
+   Boot
+   ============================================================ */
+startListeners();
+markNav();
+window.addEventListener('hashchange',()=>{ const v=location.hash.replace('#',''); if(VIEWS[v]&&v!==currentView) setView(v); });
+setView(VIEWS[location.hash.replace('#','')]?location.hash.replace('#',''):'dashboard');
+</script>
+</body></html>
