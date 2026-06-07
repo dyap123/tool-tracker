@@ -103,11 +103,13 @@
   .navlink:hover{background:#111c2d;color:#d8e3fb}
   .navlink.active{background:rgba(249,115,22,.14);color:#ffb690;border-left-color:#f97316}
   .navlink .material-symbols-outlined{font-size:20px}
-  /* Collapsible sidebar */
+  /* Collapsible sidebar (desktop) */
   #navOpenBtn{display:none}
   body.nav-collapsed #sidebar{display:none}
-  body.nav-collapsed #mainArea{margin-left:0 !important}
-  body.nav-collapsed #navOpenBtn{display:inline-flex}
+  @media(min-width:768px){
+    body.nav-collapsed #mainArea{margin-left:0 !important;padding-left:76px !important}
+    body.nav-collapsed #navOpenBtn{display:inline-flex}
+  }
 </style>
 </head>
 <body class="bg-background text-on-background antialiased h-screen overflow-hidden flex flex-col md:flex-row">
@@ -813,15 +815,51 @@ function emptyState(icon,msg){ return `<div class="flex flex-col items-center ju
 
 /* ---- placeholder views (fleshed out in later phases) ---- */
 function renderDashboard(root){
-  root.innerHTML = pageHeader('Dashboard', (state.config.projectName||'LACC Project')+' Overview') + `
-   <div class="grid grid-cols-2 lg:grid-cols-4 gap-gutter">
-     ${kpiCard('Total Assets', assetsArr().length, 'inventory_2')}
-     ${kpiCard('Monthly Charges', money(monthlyCharge()), 'payments')}
-     ${kpiCardErr('Tools Lost (all-time)', lostAllTime(), 'warning')}
-     ${kpiCard('Pending Orders', ordersArr().filter(o=>(o.status||'').toLowerCase()==='pending').length, 'local_shipping')}
-   </div>
-   <div class="mt-gutter">${ state.ready ? '' : emptyState('cloud_sync','Connecting…') }</div>`;
+  const arr=assetsArr(); const ons=arr.filter(onSite);
+  const total=arr.length, onsite=ons.length;
+  const verified=ons.filter(a=>(a.verified||'')==='Yes').length;
+  const missing=ons.filter(a=>(a.verified||'')==='Missing').length;
+  const unassigned=ons.filter(a=>!(a.assigned_to||'').trim()).length;
+  const lost=arr.filter(a=>(a.status||'')==='Lost').length;
+  const pending=ordersArr().filter(o=>(o.status||'').toLowerCase()==='pending').length;
+  const vpct=onsite?Math.round(verified/onsite*100):0;
+  const groups=groupForReconcile(arr).slice().sort((a,b)=>b.total-a.total);
+  const maxTotal=groups.reduce((m,g)=>Math.max(m,g.total),1);
+  const recent=lostArr().sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,6);
+  root.innerHTML = pageHeader('Dashboard', (state.config.projectName||'LACC Project')+' · live overview',
+    `<button class="btn-ghost" data-action="export-summary-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Cost Report</button>`)
+  + `<div class="grid grid-cols-2 lg:grid-cols-4 gap-gutter mb-gutter">
+      ${kpiCard('Total Assets', total, 'inventory_2')}
+      ${kpiCardAccent('On-Site', onsite, 'place', '#fb923c')}
+      ${kpiCardAccent('Verified', vpct+'%', 'verified', '#4ade80')}
+      ${kpiCard('Rental / mo', money(monthlyCharge()), 'payments')}
+      ${kpiCardErr('Tools Lost', lost, 'warning')}
+      ${kpiCardAccent('Missing', missing, 'help', missing?'#ffb4ab':'#9fb0cb')}
+      ${kpiCard('Unassigned', unassigned, 'person_off')}
+      ${kpiCard('Pending Orders', pending, 'local_shipping')}
+    </div>`
+  + `<div class="font-label-md text-on-surface-variant mb-sm">QUICK ACTIONS</div>
+     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-sm mb-gutter">
+       ${qa('upload_file','Import','open-import',null)}
+       ${qa('add','Add Tool','add-tool',null)}
+       ${qa('fact_check','Audit',null,'audits')}
+       ${qa('category','Summary','goto-summary',null)}
+       ${qa('search_off','Lost',null,'lost')}
+       ${qa('table_view','Export',  'export-summary-xlsx',null)}
+     </div>`
+  + `<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md">
+        <div class="flex items-center gap-2 mb-md"><span class="material-symbols-outlined text-primary-container">donut_small</span><h3 class="font-headline-md text-on-surface">Asset Distribution</h3></div>
+        ${groups.length?groups.slice(0,9).map(g=>`<div class="mb-sm"><div class="flex justify-between font-body-sm mb-0.5"><span class="text-on-surface">${esc(g.category)}</span><span class="text-on-surface-variant mono">${g.total}</span></div><div class="h-2 rounded-full bg-surface-container-high overflow-hidden"><div class="h-full rounded-full" style="width:${Math.round(g.total/maxTotal*100)}%;background:#f97316"></div></div></div>`).join(''):'<div class="text-on-surface-variant font-body-sm py-4 text-center">No on-site tools yet — Import a ToolHound report.</div>'}
+      </div>
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md">
+        <div class="flex items-center gap-2 mb-md"><span class="material-symbols-outlined text-primary-container">history</span><h3 class="font-headline-md text-on-surface">Recent Activity</h3></div>
+        ${recent.length?recent.map(e=>`<div class="flex items-center gap-3 py-2 border-b border-outline-variant last:border-0"><span class="w-8 h-8 rounded-full bg-error-container flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-[18px]" style="color:#ffb4ab">warning</span></span><div class="min-w-0 flex-1"><div class="font-body-sm text-on-surface truncate"><span class="mono" style="color:#ffb690">${esc(e.item_id||'—')}</span> marked lost</div><div class="font-label-sm text-on-surface-variant truncate">${esc(e.description||'')} · ${esc(e.date||'')}</div></div></div>`).join(''):'<div class="text-on-surface-variant font-body-sm py-4 text-center">No recent lost-tool activity.</div>'}
+      </div>
+    </div>`;
 }
+function kpiCardAccent(label,val,icon,color){ return `<div class="bg-surface-container-lowest border border-outline-variant p-md rounded flex flex-col justify-between" style="border-left:3px solid ${color}"><div class="flex justify-between items-start mb-sm"><span class="font-label-md text-on-surface-variant">${esc(label)}</span><span class="material-symbols-outlined" style="color:${color}">${icon}</span></div><div class="font-headline-xl text-headline-xl" style="color:${color}">${esc(val)}</div></div>`; }
+function qa(icon,label,action,view){ const attr=view?`data-view="${view}"`:`data-action="${action}"`; return `<button ${attr} class="flex flex-col items-center justify-center gap-1 p-md bg-surface-container-lowest border border-outline-variant rounded-xl hover:border-primary-container hover:bg-surface-container transition-all min-h-[80px]"><span class="material-symbols-outlined text-primary-container">${icon}</span><span class="font-label-md text-on-surface">${label}</span></button>`; }
 function kpiCard(label,val,icon){ return `<div class="bg-surface-container-lowest border border-outline-variant p-md rounded flex flex-col justify-between"><div class="flex justify-between items-start mb-sm"><span class="font-label-md text-on-surface-variant">${esc(label)}</span><span class="material-symbols-outlined text-outline">${icon}</span></div><div class="font-headline-xl text-headline-xl text-primary">${esc(val)}</div></div>`; }
 function kpiCardErr(label,val,icon){ return `<div class="bg-error-container border border-error p-md rounded flex flex-col justify-between cursor-pointer" data-action="goto-lost"><div class="flex justify-between items-start mb-sm"><span class="font-label-md text-on-error-container">${esc(label)}</span><span class="material-symbols-outlined text-error">${icon}</span></div><div class="font-headline-xl text-headline-xl text-error">${esc(val)}</div></div>`; }
 
@@ -993,6 +1031,44 @@ function openAssignModal(key){
   </div>`,'max-w-md'));
 }
 async function saveAssign(key){ const a=state.assets[key]; if(!a) return; try{ await fb.update('assets/'+key,{assigned_to:val('asgFm'),updatedAt:nowMs()}); closeModal(); toast('Assigned','success'); renderCurrent(); }catch(e){ toast('Failed','error'); } }
+
+// ---- Summary multi-select + bulk actions ----
+var summarySel={};
+function toggleSummarySel(k,checked){ if(checked) summarySel[k]=true; else delete summarySel[k]; updateSummaryBar(); }
+function updateSummaryBar(){ const n=Object.keys(summarySel).length; const bar=document.getElementById('summaryBar'); const c=document.getElementById('summarySelCount'); if(c)c.textContent=n; if(bar)bar.style.display=n?'':'none'; }
+function clearSummarySel(){ summarySel={}; renderCurrent(); }
+async function bulkSummary(action){
+  const keys=Object.keys(summarySel); if(!keys.length){ toast('Select tools first','info'); return; }
+  if(action==='lost'){
+    if(!confirm('Mark '+keys.length+' tool(s) as LOST?')) return;
+    if(!await requirePin()) return;
+    const n=await markLostKeys(keys,'Manager'); summarySel={}; toast(n+' marked lost','success'); renderCurrent();
+  } else if(action==='onsite'){
+    const updates={}; keys.forEach(k=>{ const a=state.assets[k]; if(a) updates[k]={...a,status:'On Site',verified:'Yes',verifiedAt:nowMs(),updatedAt:nowMs()}; });
+    try{ await fb.update('assets',updates); summarySel={}; toast(keys.length+' marked on-site','success'); renderCurrent(); }catch(e){ toast('Failed','error'); }
+  }
+}
+function openBulkAssign(){
+  const keys=Object.keys(summarySel); if(!keys.length){ toast('Select tools first','info'); return; }
+  const opts=['<option value="">Unassigned</option>'].concat(foremanNames().map(n=>`<option value="${esc(n)}">${esc(n)}</option>`)).join('');
+  modal(modalCard(`<div class="p-lg">
+    <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-on-surface">Assign ${keys.length} tool(s)</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+    <label class="lbl">Foreman</label><select id="basgFm" class="ipt">${opts}</select>
+    <div class="flex gap-sm justify-end mt-lg"><button class="btn-ghost" data-action="close-modal">Cancel</button><button class="btn-primary" data-action="bulk-assign-save">Assign all</button></div>
+  </div>`,'max-w-md'));
+}
+async function saveBulkAssign(){
+  const keys=Object.keys(summarySel); const fm=val('basgFm');
+  const updates={}; keys.forEach(k=>{ const a=state.assets[k]; if(a) updates[k]={...a,assigned_to:fm,updatedAt:nowMs()}; });
+  try{ await fb.update('assets',updates); summarySel={}; closeModal(); toast(keys.length+' assigned','success'); renderCurrent(); }catch(e){ toast('Failed','error'); }
+}
+function exportSummaryXlsx(){
+  const groups=groupForReconcile(assetsArr());
+  if(!groups.length){ toast('No on-site tools to report','info'); return; }
+  const rows=groups.map(g=>{ const mo=g.lines.flatMap(l=>l.tools).reduce((s,t)=>s+num(t.unit_cost),0); return {'Category':g.category,'Tools On-Site':g.total,'Monthly Cost':mo}; });
+  rows.push({'Category':'TOTAL','Tools On-Site':rows.reduce((s,r)=>s+r['Tools On-Site'],0),'Monthly Cost':rows.reduce((s,r)=>s+r['Monthly Cost'],0)});
+  exportXlsx(rows,'Cost Summary','HoundTool Cost Summary '+todayStr()+'.xlsx');
+}
 async function deleteAsset(key){ if(!await requirePin()) return; try{ await fb.remove('assets/'+key); closeModal(); toast('Deleted','success'); }catch(e){ toast('Failed: '+e.message,'error'); } }
 
 async function markLostKeys(keys, by){
@@ -1203,6 +1279,13 @@ function dispatchAction4(a, el){
     case 'sum-assign': openAssignModal(key); return true;
     case 'assign-save': saveAssign(key); return true;
     case 'sum-marklost': (async()=>{ const a=state.assets[key]; if(!a)return; if(!confirm('Mark '+(a.item_id||a.description)+' as LOST?'))return; if(!await requirePin())return; const n=await markLostKeys([key],'Manager'); toast(n+' marked lost','success'); renderCurrent(); })(); return true;
+    case 'sum-bulk-lost': bulkSummary('lost'); return true;
+    case 'sum-bulk-onsite': bulkSummary('onsite'); return true;
+    case 'sum-bulk-assign': openBulkAssign(); return true;
+    case 'bulk-assign-save': saveBulkAssign(); return true;
+    case 'sum-bulk-clear': clearSummarySel(); return true;
+    case 'export-summary-xlsx': exportSummaryXlsx(); return true;
+    case 'goto-summary': assetsViewMode='summary'; setView('assets'); return true;
     case 'order-receive': orderSetStatus(key,'Delivered'); return true;
     case 'order-cancel': orderSetStatus(key,'Cancelled'); return true;
     case 'order-toinv': orderToInventory(key); return true;
@@ -1226,11 +1309,15 @@ function summaryGridHtml(){
   if(!groups.length) return emptyState('category','No on-site tools to summarize. Import a ToolHound report first.');
   const toggle=`<div class="flex items-center gap-2 mb-md flex-wrap"><span class="font-label-md text-on-surface-variant">Group by</span>
     <button data-action="sum-groupby" data-g="category" class="chip ${summaryGroupBy==='category'?'on':''}">Category</button>
-    <button data-action="sum-groupby" data-g="brand" class="chip ${summaryGroupBy==='brand'?'on':''}">Brand</button></div>`;
-  const toolRow=t=>{ const k=keyByItem[t.item_id]; return `<div class="flex items-center justify-between gap-sm px-md py-1.5 hover:bg-surface-container-low">
-     <div class="min-w-0 truncate"><span class="mono font-bold font-body-sm" style="color:#ffb690">${esc(t.item_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((t.description||'').slice(0,28))}</span>${fmBy[t.item_id]?` <span class="font-label-sm text-on-surface-variant">· ${esc(fmBy[t.item_id])}</span>`:''}</div>
+    <button data-action="sum-groupby" data-g="brand" class="chip ${summaryGroupBy==='brand'?'on':''}">Brand</button>
+    <button class="btn-ghost ml-auto" data-action="export-summary-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Cost Report</button></div>`;
+  const toolRow=t=>{ const k=keyByItem[t.item_id]; return `<div class="flex items-center gap-sm px-md py-1.5 hover:bg-surface-container-low">
+     ${k?`<input type="checkbox" ${summarySel[k]?'checked':''} onchange="toggleSummarySel('${esc(k)}',this.checked)" class="accent-primary w-4 h-4 flex-shrink-0">`:'<span class="w-4 flex-shrink-0"></span>'}
+     <div class="min-w-0 truncate flex-1"><span class="mono font-bold font-body-sm" style="color:#ffb690">${esc(t.item_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((t.description||'').slice(0,24))}</span>${fmBy[t.item_id]?` <span class="font-label-sm text-on-surface-variant">· ${esc(fmBy[t.item_id])}</span>`:''}</div>
      <div class="flex items-center gap-2 flex-shrink-0"><span class="font-body-sm whitespace-nowrap mono">${t.unit_cost?money2(t.unit_cost):'—'}</span>${k?`<button data-action="sum-assign" data-key="${esc(k)}" class="text-on-surface-variant hover:text-primary-container" title="Assign foreman"><span class="material-symbols-outlined text-[18px]">person_add</span></button><button data-action="sum-marklost" data-key="${esc(k)}" class="text-on-surface-variant hover:text-error" title="Mark lost"><span class="material-symbols-outlined text-[18px]">report</span></button>`:''}</div></div>`; };
   const cardWrap=inner=>`<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">${inner}</div>`;
+  const selN=Object.keys(summarySel).length;
+  const bar=`<div id="summaryBar" class="bg-surface-container border border-primary-container rounded-xl p-md mt-md flex items-center justify-between gap-sm flex-wrap" style="position:sticky;bottom:8px;z-index:20;box-shadow:0 8px 22px rgba(0,0,0,.5);${selN?'':'display:none'}"><span class="font-body-md text-on-surface"><b id="summarySelCount">${selN}</b> selected</span><div class="flex gap-sm flex-wrap"><button class="btn-ghost" data-action="sum-bulk-assign"><span class="material-symbols-outlined text-[18px]">person_add</span>Assign</button><button class="btn-ghost" data-action="sum-bulk-onsite"><span class="material-symbols-outlined text-[18px]">check_circle</span>On-Site</button><button class="btn-danger" data-action="sum-bulk-lost"><span class="material-symbols-outlined text-[18px]">report</span>Mark Lost</button><button class="btn-ghost" data-action="sum-bulk-clear">Clear</button></div></div>`;
 
   if(summaryGroupBy==='brand'){
     const brandMap={};
@@ -1249,7 +1336,7 @@ function summaryGridHtml(){
           const ts=cats[cn].sort((a,b)=>String(a.description).localeCompare(String(b.description)));
           return `<div class="px-md py-1 bg-surface-container-low font-label-md text-on-surface-variant flex items-center justify-between sticky top-0"><span>${esc(cn)}</span><span>${ts.length}</span></div><div class="divide-y divide-outline-variant">${ts.map(toolRow).join('')}</div>`;
         }).join('')}</div></div>`;
-    }).join(''));
+    }).join(''))+bar;
   }
   return toggle+cardWrap(groups.map(g=>{
     const tools=g.lines.flatMap(l=>l.tools).sort((a,b)=>String(a.description).localeCompare(String(b.description)));
@@ -1257,7 +1344,7 @@ function summaryGridHtml(){
     return `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-hidden flex flex-col">
       <div class="p-md border-b border-outline-variant"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(g.category)}</span><span class="chip on">${g.total}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}/mo</span></div>
       <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:240px">${tools.map(toolRow).join('')}</div></div>`;
-  }).join(''));
+  }).join(''))+bar;
 }
 
 function renderReports(root){
