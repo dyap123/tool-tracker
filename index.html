@@ -124,6 +124,7 @@
   <ul class="flex flex-col gap-xs flex-1" id="navList">
     <li><a class="navlink" data-view="dashboard" href="#"><span class="material-symbols-outlined" data-icon="dashboard">dashboard</span><span class="font-label-md">Dashboard</span></a></li>
     <li><a class="navlink" data-view="assets" href="#"><span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span><span class="font-label-md">Assets</span></a></li>
+    <li><a class="navlink" data-view="summary" href="#"><span class="material-symbols-outlined" data-icon="category">category</span><span class="font-label-md">Summary</span></a></li>
     <li><a class="navlink" data-view="orders" href="#"><span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span><span class="font-label-md">Orders</span></a></li>
     <li><a class="navlink" data-view="audits" href="#"><span class="material-symbols-outlined" data-icon="fact_check">fact_check</span><span class="font-label-md">Audits</span></a></li>
     <li><a class="navlink" data-view="reports" href="#"><span class="material-symbols-outlined" data-icon="description">description</span><span class="font-label-md">Foreman Reports</span></a></li>
@@ -178,14 +179,14 @@ window.fb = {
 /* ============================================================
    App state + live listeners
    ============================================================ */
-const state = { assets:{}, orders:{}, lostLog:{}, foremen:{}, config:{}, counters:{}, ready:false };
+const state = { assets:{}, orders:{}, lostLog:{}, foremen:{}, crewForemen:[], config:{}, counters:{}, ready:false };
 let currentView = 'dashboard';
 
 function startListeners(){
   fb.listen('assets', v => { state.assets = v||{}; onData(); });
   fb.listen('orders', v => { state.orders = v||{}; onData(); });
   fb.listen('lostLog', v => { state.lostLog = v||{}; onData(); });
-  fb.listen('foremen', v => { state.foremen = v||{}; });
+  fb.listen('foremen', v => { state.foremen = v||{}; refreshForemanList(); });
   fb.listen('counters', v => { state.counters = v||{}; onData(); });
   fb.listen('config', v => {
     state.config = v||{};
@@ -698,21 +699,30 @@ function diffImport(items){
 
 function showImportReview(fileName, parsed, diff){
   window._importDiff=diff; window._importMeta={fileName,type:parsed.type};
-  const warn = parsed.warnings&&parsed.warnings.length ? `<div class="bg-error-container text-on-error-container rounded p-sm mb-md font-body-sm">${esc(parsed.warnings.join(' '))}</div>` : '';
-  const addRows=diff.added.map((x,i)=>impRow('added',i,x)).join('');
-  const updRows=diff.updated.map((x,i)=>impRow('updated',i,x)).join('');
-  const remRows=diff.removed.map((x,i)=>impRow('removed',i,x)).join('');
+  const warn = parsed.warnings&&parsed.warnings.length ? `<div class="rounded p-sm mb-md font-body-sm" style="background:#fff7ed;color:#8a4408;border:1px solid #f5d9b8">⚠ ${esc(parsed.warnings.join(' '))}</div>` : '';
+  const card=(n,label,bg,fg)=>`<div class="rounded p-sm text-center" style="background:${bg}"><div class="font-headline-lg" style="color:${fg}">${n}</div><div class="font-label-sm" style="color:${fg}">${label}</div></div>`;
+  const section=(title,fg,desc,rows,open)=>!rows.length?'':`<details ${open?'open':''} class="mb-sm border border-outline-variant rounded overflow-hidden">
+      <summary class="flex items-center justify-between p-sm cursor-pointer select-none" style="background:${fg}14">
+        <span class="font-label-md" style="color:${fg}">${title} · ${rows.length}</span>
+        <span class="font-body-sm text-on-surface-variant">${desc}</span></summary>
+      <div class="divide-y divide-outline-variant" style="max-height:40vh;overflow-y:auto">${rows.join('')}</div></details>`;
   modal(modalCard(`
     <div class="p-lg">
-      <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-primary">Review Import — ${esc(fileName)}</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
-      <p class="font-body-sm text-on-surface-variant mb-md">Detected <b>${esc(parsed.type)}</b> report · ${diff.added.length} new · ${diff.updated.length} updates · ${diff.removed.length} not in report. Untick anything you don't want.</p>
+      <div class="flex justify-between items-center mb-xs"><h3 class="font-headline-md text-primary">Review import</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+      <p class="font-body-sm text-on-surface-variant mb-md">${esc(fileName)} · detected <b>${esc(parsed.type)}</b> report</p>
       ${warn}
-      ${diff.added.length?`<h4 class="font-label-md text-primary mt-md mb-xs">NEW TOOLS (${diff.added.length})</h4><div class="border border-outline-variant rounded divide-y divide-outline-variant max-h-[28vh] overflow-y-auto">${addRows}</div>`:''}
-      ${diff.updated.length?`<h4 class="font-label-md text-primary mt-md mb-xs">UPDATES (${diff.updated.length})</h4><div class="border border-outline-variant rounded divide-y divide-outline-variant max-h-[22vh] overflow-y-auto">${updRows}</div>`:''}
-      ${diff.removed.length?`<h4 class="font-label-md text-primary mt-md mb-xs">NOT IN REPORT — mark Returned? (${diff.removed.length})</h4><div class="border border-outline-variant rounded divide-y divide-outline-variant max-h-[18vh] overflow-y-auto">${remRows}</div>`:''}
-      <div class="flex gap-sm justify-end mt-lg">
-        <button class="px-md py-2 border border-outline-variant rounded font-label-md" data-action="close-modal">Cancel</button>
-        <button class="px-md py-2 bg-primary text-on-primary rounded font-label-md" data-action="imp-commit">Commit Import</button>
+      <div class="grid grid-cols-3 gap-sm mb-md">
+        ${card(diff.added.length,'NEW','#dcfce7','#166534')}
+        ${card(diff.updated.length,'UPDATED','#dbeafe','#1e40af')}
+        ${card(diff.removed.length,'NOT IN FILE','#fef3c7','#92400e')}
+      </div>
+      ${section('New tools','#166534','will be added',diff.added.map((x,i)=>impRow('added',i,x)),diff.added.length<=25)}
+      ${section('Updates','#1e40af','cost / description changes',diff.updated.map((x,i)=>impRow('updated',i,x)),diff.updated.length<=25)}
+      ${section('Not in this file','#92400e','tick to mark Returned (off by default)',diff.removed.map((x,i)=>impRow('removed',i,x)),false)}
+      <div class="flex gap-sm justify-end mt-lg items-center">
+        <span class="font-body-sm text-on-surface-variant mr-auto">Untick any row you don't want.</span>
+        <button class="btn-ghost" data-action="close-modal">Cancel</button>
+        <button class="btn-primary" data-action="imp-commit">Commit</button>
       </div>
     </div>`,'max-w-3xl'));
 }
@@ -720,18 +730,14 @@ function impRow(section,i,x){
   const a = section==='removed' ? x.cur : x.next;
   const checked = section==='removed' ? (x._include?'checked':'') : 'checked';
   const idTag = a.item_id || a.part_no || '—';
-  const sub = section==='updated' ? `<span class="font-body-sm text-on-surface-variant">${esc(x.cur.unit_cost)} → </span>` : '';
-  const raw = a._raw ? `<div class="font-body-sm text-outline mt-1 truncate" title="${esc(a._raw)}">${esc(a._raw)}</div>` : '';
-  return `<div class="flex items-center gap-sm p-sm">
-    <input type="checkbox" ${checked} onchange="impToggle('${section}',${i},this.checked)" class="w-4 h-4 accent-primary">
-    <div class="flex-1 min-w-0">
-      <div class="flex items-center gap-sm flex-wrap">
-        <span class="font-bold text-primary">${esc(idTag)}</span>
-        <input value="${esc(a.description)}" onchange="impEdit('${section}',${i},'description',this.value)" class="flex-1 min-w-[120px] border border-outline-variant rounded px-2 py-1 font-body-sm" placeholder="Description">
-      </div>${raw}
-    </div>
-    <input value="${esc(a.category)}" onchange="impEdit('${section}',${i},'category',this.value)" class="w-32 border border-outline-variant rounded px-2 py-1 font-body-sm" placeholder="Category" ${section==='removed'?'disabled':''}>
-    <div class="flex items-center gap-1">${sub}<input value="${esc(a.unit_cost)}" onchange="impEdit('${section}',${i},'unit_cost',this.value)" class="w-20 border border-outline-variant rounded px-2 py-1 font-body-sm text-right" placeholder="$/mo" ${section==='removed'?'disabled':''}></div>
+  const dis = section==='removed' ? 'disabled' : '';
+  const wasCost = section==='updated' && num(x.cur.unit_cost)!==num(a.unit_cost) ? `<span class="font-body-sm text-on-surface-variant line-through mr-1 whitespace-nowrap">${money2(num(x.cur.unit_cost))}</span>` : '';
+  return `<div class="flex items-center gap-sm p-sm hover:bg-surface-container" ${a._raw?`title="${esc(a._raw)}"`:''}>
+    <input type="checkbox" ${checked} onchange="impToggle('${section}',${i},this.checked)" class="w-4 h-4 accent-primary flex-shrink-0">
+    <span class="font-bold text-primary flex-shrink-0 truncate" style="width:90px">${esc(idTag)}</span>
+    <input value="${esc(a.description)}" onchange="impEdit('${section}',${i},'description',this.value)" class="flex-1 min-w-0 border border-outline-variant rounded px-2 py-1 font-body-sm" placeholder="Description" ${dis}>
+    <input value="${esc(a.category)}" onchange="impEdit('${section}',${i},'category',this.value)" class="flex-shrink-0 border border-outline-variant rounded px-2 py-1 font-body-sm" style="width:110px" placeholder="Category" ${dis}>
+    <div class="flex items-center flex-shrink-0 justify-end" style="width:96px">${wasCost}<input value="${esc(a.unit_cost)}" onchange="impEdit('${section}',${i},'unit_cost',this.value)" class="border border-outline-variant rounded px-2 py-1 font-body-sm text-right" style="width:60px" placeholder="$/mo" ${dis}></div>
   </div>`;
 }
 function impToggle(section,i,v){ window._importDiff[section][i]._include=v; }
@@ -759,6 +765,7 @@ function stripMeta(o){ const c={...o}; delete c._key; delete c._include; delete 
 const VIEWS = {
   dashboard: renderDashboard,
   assets:    renderAssets,
+  summary:   renderSummary,
   orders:    renderOrders,
   audits:    renderAudits,
   reports:   renderReports,
@@ -804,13 +811,18 @@ function kpiCardErr(label,val,icon){ return `<div class="bg-error-container bord
 function val(id){ const e=document.getElementById(id); return e?e.value:''; }
 
 /* ---------- Inventory / Assets ---------- */
-let assetStatusFilter='', assetQuery='';
+let assetStatusFilter='', assetQuery='', assetForeman='';
 function renderAssets(root){
   const arr=assetsArr();
-  // Status filter only happens at render; the text search filters rows in place (fluid, no rebuild).
-  const filtered=arr.filter(a=>!assetStatusFilter || (a.status||'')===assetStatusFilter)
-    .sort((a,b)=>String(a.item_id||a.description).localeCompare(String(b.item_id||b.description)));
+  // Status + foreman filter at render; the text search filters rows in place (fluid, no rebuild).
+  const filtered=arr.filter(a=>{
+      if(assetStatusFilter && (a.status||'')!==assetStatusFilter) return false;
+      if(assetForeman==='__none__'){ if((a.assigned_to||'').trim()) return false; }
+      else if(assetForeman && (a.assigned_to||'')!==assetForeman) return false;
+      return true;
+    }).sort((a,b)=>String(a.item_id||a.description).localeCompare(String(b.item_id||b.description)));
   const chips=['','On Site','Transferred','Returned','Lost','Damaged'].map(s=>`<button data-action="asset-filter" data-st="${esc(s)}" class="chip ${assetStatusFilter===s?'on':''}">${s||'All'}</button>`).join('');
+  const fmOpts=['<option value="">All foremen</option>','<option value="__none__">Unassigned</option>'].concat(foremanNames().map(n=>`<option value="${esc(n)}" ${assetForeman===n?'selected':''}>${esc(n)}</option>`)).join('');
   root.innerHTML = pageHeader('Inventory Registry', filtered.length+' of '+arr.length+' assets · '+money(monthlyCharge())+'/mo on site',
     `<button class="btn-ghost" data-action="open-import"><span class="material-symbols-outlined text-[18px]">upload_file</span>Import</button>
      <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button>
@@ -819,6 +831,7 @@ function renderAssets(root){
        <div class="relative flex-1 min-w-[200px]"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
        <input id="assetSearch" value="${esc(assetQuery)}" oninput="assetSearchInput(this.value)" placeholder="Search ID, serial, description, foreman…" class="ipt pl-9" autocomplete="off"></div>
        <span id="assetCountLbl" class="font-body-sm text-on-surface-variant whitespace-nowrap"></span>
+       <select onchange="assetForeman=this.value;renderCurrent()" class="ipt" style="width:auto;min-width:150px" title="Filter by assigned foreman">${fmOpts}</select>
        <div class="flex gap-1 flex-wrap">${chips}</div>
      </div>`
   + (filtered.length ? `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-x-auto"><table class="ttable"><thead><tr>
@@ -836,6 +849,30 @@ function renderAssets(root){
      : emptyState('inventory_2', arr.length? 'No assets match the filter.' : 'No assets yet — Import a ToolHound report or Add a Tool.'));
   applyAssetSearch();
 }
+// ---- Foreman roster (shared with the foreman-attendance app) ----
+// Pulls the same crew roster the attendance app uses, so foreman identities match
+// across both apps (this is what makes "link a foreman's inventory to their app" work).
+async function loadCrewForemen(){
+  try{
+    const fa = (typeof fb.rootGet==='function' ? await fb.rootGet('foreman-attendance/foremen') : null) || {};
+    const seen=new Set(), list=[];
+    [...Object.values(fa), ...Object.values(state.foremen||{})].forEach(f=>{
+      const n=((f&&f.name)||'').trim(); if(!n || f.active===false) return;
+      const k=n.toLowerCase(); if(seen.has(k)) return; seen.add(k); list.push(n);
+    });
+    list.sort((a,b)=>a.localeCompare(b));
+    state.crewForemen=list; refreshForemanList();
+  }catch(e){ /* offline / no roster — Assigned-To still works as free text */ }
+}
+function foremanNames(){
+  const m=new Map();
+  (state.crewForemen||[]).forEach(n=>{ const k=n.trim().toLowerCase(); if(k) m.set(k,n.trim()); });
+  assetsArr().forEach(a=>{ const n=(a.assigned_to||'').trim(); if(n && !m.has(n.toLowerCase())) m.set(n.toLowerCase(),n); });
+  return [...m.values()].sort((a,b)=>a.localeCompare(b));
+}
+function foremanDatalist(){ return `<datalist id="foremanList">`+foremanNames().map(n=>`<option value="${esc(n)}"></option>`).join('')+`</datalist>`; }
+function refreshForemanList(){ const dl=document.getElementById('foremanList'); if(dl) dl.innerHTML=foremanNames().map(n=>`<option value="${esc(n)}"></option>`).join(''); }
+
 // Fluid in-place search: show/hide existing rows, never re-render or refetch.
 function assetSearchInput(v){ assetQuery=(v||'').toLowerCase(); applyAssetSearch(); }
 function applyAssetSearch(){
@@ -853,7 +890,7 @@ function openAddTool(){
       <div><label class="lbl">Tool # (Item ID)</label><input id="atId" class="ipt" placeholder="e.g. DRL-901"></div>
       <div><label class="lbl">Monthly Cost ($)</label><input id="atCost" type="number" step="0.01" class="ipt" placeholder="0.00"></div>
       <div><label class="lbl">Category</label><input id="atCat" class="ipt" oninput="this._t=1" placeholder="auto from type"></div>
-      <div><label class="lbl">Assigned To</label><input id="atFm" class="ipt" placeholder="Foreman / area"></div>
+      <div><label class="lbl">Assigned To</label><input id="atFm" list="foremanList" class="ipt" placeholder="Foreman / area">${foremanDatalist()}</div>
       <div><label class="lbl">Qty</label><input id="atQty" type="number" class="ipt" value="1"></div>
       <div><label class="lbl">Serial (optional)</label><input id="atSerial" class="ipt"></div>
     </div>
@@ -882,7 +919,7 @@ function openAssetEdit(key){
       <div><label class="lbl">Category</label><input id="aeCat" class="ipt" value="${esc(a.category)}"></div>
       <div><label class="lbl">Status</label><select id="aeStatus" class="ipt">${opts}</select></div>
       <div><label class="lbl">Monthly Cost ($)</label><input id="aeCost" type="number" step="0.01" class="ipt" value="${esc(a.unit_cost)}"></div>
-      <div><label class="lbl">Assigned To</label><input id="aeFm" class="ipt" value="${esc(a.assigned_to)}"></div>
+      <div><label class="lbl">Assigned To</label><input id="aeFm" list="foremanList" class="ipt" value="${esc(a.assigned_to)}">${foremanDatalist()}</div>
       <div><label class="lbl">Qty</label><input id="aeQty" type="number" class="ipt" value="${esc(a.qty)}"></div>
       <div><label class="lbl">Serial</label><input id="aeSerial" class="ipt" value="${esc(a.serial)}"></div>
       <div class="sm:col-span-2"><label class="lbl">Notes</label><input id="aeNotes" class="ipt" value="${esc(a.notes)}"></div>
@@ -1113,6 +1150,36 @@ function dispatchAction4(a, el){
   return false;
 }
 /* ---------- Foreman Reports ---------- */
+/* ---------- Summary (all tools grouped by category) ---------- */
+let summaryOpen={}, summaryDefaultOpen=true;
+function renderSummary(root){
+  const groups=groupForReconcile(assetsArr());          // same categorization as the foreman report
+  const onsite=assetsArr().filter(onSite);
+  const totalTools=groups.reduce((s,g)=>s+g.total,0);
+  const totalMo=onsite.reduce((s,a)=>s+num(a.unit_cost)*(parseInt(a.qty)||1),0);
+  const fmBy={}; assetsArr().forEach(a=>{ if(a.item_id) fmBy[a.item_id]=a.assigned_to||''; });
+  let html=pageHeader('Tool Summary', totalTools+' tools on site · '+groups.length+' categories · '+money(totalMo)+'/mo',
+    `<button class="btn-ghost" data-action="print-summary"><span class="material-symbols-outlined text-[18px]">print</span>Print</button>
+     <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button>`);
+  html+=`<div class="flex gap-1 mb-md flex-wrap"><button data-action="sum-expand" class="chip">Expand all</button><button data-action="sum-collapse" class="chip">Collapse all</button></div>`;
+  if(!groups.length){ root.innerHTML=html+emptyState('category','No on-site tools to summarize. Import a ToolHound report first.'); return; }
+  html+=groups.map(g=>{
+    const open=(g.category in summaryOpen)?summaryOpen[g.category]:summaryDefaultOpen;
+    const tools=g.lines.flatMap(l=>l.tools).sort((a,b)=>String(a.description).localeCompare(String(b.description)));
+    const mo=tools.reduce((s,t)=>s+num(t.unit_cost),0);
+    return `<div class="bg-surface-container-lowest border border-outline-variant rounded mb-sm overflow-hidden">
+      <button data-action="sum-toggle" data-key="${esc(g.category)}" class="w-full flex items-center justify-between p-md hover:bg-surface-container text-left">
+        <div class="flex items-center gap-sm"><span class="material-symbols-outlined text-on-surface-variant">${open?'expand_more':'chevron_right'}</span><span class="font-headline-md text-primary">${esc(g.category)}</span><span class="chip on">${g.total}</span></div>
+        <span class="font-bold text-primary whitespace-nowrap">${money(mo)}/mo</span>
+      </button>
+      ${open?`<div class="border-t border-outline-variant overflow-x-auto"><table class="ttable"><thead><tr><th>Item ID</th><th>Description</th><th>Assigned</th><th class="text-right">$/mo</th></tr></thead><tbody>`+
+        tools.map(t=>`<tr><td class="font-bold text-primary">${esc(t.item_id||'—')}</td><td>${esc(t.description)}</td><td class="text-on-surface-variant">${esc(fmBy[t.item_id]||'—')}</td><td class="text-right">${t.unit_cost?money2(t.unit_cost):'—'}</td></tr>`).join('')
+        +`</tbody></table></div>`:''}
+    </div>`;
+  }).join('');
+  root.innerHTML=html;
+}
+
 function renderReports(root){
   const onsite=assetsArr().filter(onSite);
   const {buckets,excludedConsumableQty}=classifyAssets(assetsArr());
@@ -1307,6 +1374,9 @@ function dispatchAction5(a, el){
     case 'lost-tab': lostTab=el.dataset.t; lostSel={}; renderCurrent(); return true;
     case 'lost-report': buildLostReportPdf(); return true;
     case 'export-lost-xlsx': exportLostXlsx(); return true;
+    case 'sum-expand': summaryDefaultOpen=true; summaryOpen={}; renderCurrent(); return true;
+    case 'sum-collapse': summaryDefaultOpen=false; summaryOpen={}; renderCurrent(); return true;
+    case 'sum-toggle': { const cur=(key in summaryOpen)?summaryOpen[key]:summaryDefaultOpen; summaryOpen[key]=!cur; renderCurrent(); return true; }
     case 'recon-missing': lostMissingOnly=!lostMissingOnly; renderCurrent(); return true;
     case 'recon-expand': reconExpandAll=true; renderCurrent(); return true;
     case 'recon-collapse': reconExpandAll=false; lostExpanded={}; renderCurrent(); return true;
@@ -1348,6 +1418,7 @@ function dispatchAction(a, el, e){
    Boot
    ============================================================ */
 startListeners();
+loadCrewForemen();
 markNav();
 window.addEventListener('hashchange',()=>{ const v=location.hash.replace('#',''); if(VIEWS[v]&&v!==currentView) setView(v); });
 setView(VIEWS[location.hash.replace('#','')]?location.hash.replace('#',''):'dashboard');
