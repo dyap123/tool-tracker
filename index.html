@@ -6,6 +6,7 @@
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&amp;display=swap" rel="stylesheet"/>
 <!-- Firebase (RTDB, compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -22,24 +23,24 @@
     darkMode: "class",
     theme: { extend: {
       colors: {
-        "surface-tint":"#565e74","on-primary-container":"#7c839b","surface-container-high":"#dce9ff",
-        "on-error":"#ffffff","tertiary-container":"#0d1c2f","outline-variant":"#c6c6cd",
-        "on-secondary-container":"#571a00","on-secondary-fixed-variant":"#7f2b00","primary-container":"#131b2e",
-        "surface-container":"#e5eeff","on-tertiary-container":"#76859b","primary":"#000000",
-        "surface-variant":"#d3e4fe","on-surface":"#0b1c30","surface-container-low":"#eff4ff",
-        "secondary-fixed-dim":"#ffb599","inverse-on-surface":"#eaf1ff","on-tertiary-fixed":"#0d1c2f",
-        "on-surface-variant":"#45464d","surface-container-lowest":"#ffffff","secondary-fixed":"#ffdbce",
-        "outline":"#76777d","secondary-container":"#fd651e","primary-fixed":"#dae2fd","on-primary-fixed":"#131b2e",
-        "on-primary-fixed-variant":"#3f465c","background":"#f8f9ff","on-tertiary":"#ffffff",
-        "tertiary-fixed-dim":"#b9c7e0","on-secondary-fixed":"#370e00","on-tertiary-fixed-variant":"#3a485c",
-        "inverse-surface":"#213145","on-background":"#0b1c30","tertiary":"#000000","on-error-container":"#93000a",
-        "inverse-primary":"#bec6e0","surface":"#f8f9ff","surface-bright":"#f8f9ff","error":"#ba1a1a",
-        "error-container":"#ffdad6","secondary":"#a73a00","on-primary":"#ffffff","surface-dim":"#cbdbf5",
-        "surface-container-highest":"#d3e4fe","primary-fixed-dim":"#bec6e0","on-secondary":"#ffffff","tertiary-fixed":"#d5e3fd"
+        "surface-tint":"#ffb690","on-primary-container":"#582200","surface-container-high":"#1f2a3c",
+        "on-error":"#690005","tertiary-container":"#00a2f4","outline-variant":"#584237",
+        "on-secondary-container":"#a9bad3","on-secondary-fixed-variant":"#38485d","primary-container":"#f97316",
+        "surface-container":"#152031","on-tertiary-container":"#003554","primary":"#ffb690",
+        "surface-variant":"#2a3548","on-surface":"#d8e3fb","surface-container-low":"#111c2d",
+        "secondary-fixed-dim":"#b7c8e1","inverse-on-surface":"#263143","on-tertiary-fixed":"#001d32",
+        "on-surface-variant":"#e0c0b1","surface-container-lowest":"#040e1f","secondary-fixed":"#d3e4fe",
+        "outline":"#a78b7d","secondary-container":"#3a4a5f","primary-fixed":"#ffdbca","on-primary-fixed":"#341100",
+        "on-primary-fixed-variant":"#783200","background":"#081425","on-tertiary":"#003351",
+        "tertiary-fixed-dim":"#93ccff","on-secondary-fixed":"#0b1c30","on-tertiary-fixed-variant":"#004b74",
+        "inverse-surface":"#d8e3fb","on-background":"#d8e3fb","tertiary":"#93ccff","on-error-container":"#ffdad6",
+        "inverse-primary":"#9d4300","surface":"#081425","surface-bright":"#2f3a4c","error":"#ffb4ab",
+        "error-container":"#93000a","secondary":"#b7c8e1","on-primary":"#552100","surface-dim":"#081425",
+        "surface-container-highest":"#2a3548","primary-fixed-dim":"#ffb690","on-secondary":"#213145","tertiary-fixed":"#cde5ff"
       },
-      borderRadius:{ "DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem" },
+      borderRadius:{ "sm":"0.25rem","DEFAULT":"0.5rem","md":"0.75rem","lg":"1rem","xl":"1.5rem","full":"9999px" },
       spacing:{ "base":"4px","xl":"32px","margin-mobile":"16px","sm":"8px","xs":"4px","margin-desktop":"32px","gutter":"16px","lg":"24px","md":"16px" },
-      fontFamily:{ "headline-md":["Inter"],"headline-lg":["Inter"],"label-md":["Inter"],"body-md":["Inter"],"label-sm":["Inter"],"label-sm-mobile":["Inter"],"headline-xl-mobile":["Inter"],"body-sm":["Inter"],"headline-xl":["Inter"],"body-lg":["Inter"] },
+      fontFamily:{ "headline-md":["Inter"],"headline-lg":["Inter"],"label-md":["Inter"],"body-md":["Inter"],"label-sm":["Inter"],"label-sm-mobile":["Inter"],"headline-xl-mobile":["Inter"],"body-sm":["Inter"],"headline-xl":["Inter"],"body-lg":["Inter"],"mono":["JetBrains Mono","monospace"] },
       fontSize:{
         "headline-md":["20px",{"lineHeight":"28px","fontWeight":"600"}],
         "headline-lg":["24px",{"lineHeight":"32px","fontWeight":"600"}],
@@ -58,41 +59,55 @@
 <style>
   .material-symbols-outlined{ font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
   .material-symbols-outlined.fill{ font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24; }
+  body{font-family:Inter,system-ui,sans-serif}
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace}
   ::-webkit-scrollbar{width:10px;height:10px}
-  ::-webkit-scrollbar-thumb{background:#c6c6cd;border-radius:6px}
-  .industrial-checkbox{ appearance:none;-webkit-appearance:none;width:32px;height:32px;border:2px solid #76777d;border-radius:4px;cursor:pointer;flex-shrink:0;position:relative;background:#fff;transition:all .15s; }
-  .industrial-checkbox:checked{ background:#000;border-color:#000; }
-  .industrial-checkbox:checked::after{ content:'';position:absolute;left:10px;top:5px;width:8px;height:14px;border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg); }
-  .bg-pattern{ background-image:radial-gradient(#c6c6cd 1px,transparent 1px);background-size:16px 16px; }
+  ::-webkit-scrollbar-track{background:#040e1f}
+  ::-webkit-scrollbar-thumb{background:#3a4a5f;border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:#4a5d76}
+  .industrial-checkbox{ appearance:none;-webkit-appearance:none;width:32px;height:32px;border:2px solid #584237;border-radius:6px;cursor:pointer;flex-shrink:0;position:relative;background:#0c1626;transition:all .15s; }
+  .industrial-checkbox:checked{ background:#f97316;border-color:#f97316; }
+  .industrial-checkbox:checked::after{ content:'';position:absolute;left:10px;top:5px;width:8px;height:14px;border:solid #081425;border-width:0 3px 3px 0;transform:rotate(45deg); }
+  .bg-pattern,.bg-grid{ background-image:linear-gradient(#16243a 1px,transparent 1px),linear-gradient(90deg,#16243a 1px,transparent 1px);background-size:28px 28px; }
   /* Toasts */
   #toastWrap{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center}
-  .toast{padding:10px 16px;border-radius:6px;font-size:13px;font-weight:600;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25);animation:tin .2s ease}
-  .toast.success{background:#166534}.toast.error{background:#ba1a1a}.toast.info{background:#131b2e}
+  .toast{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:700;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.5);animation:tin .2s ease}
+  .toast.success{background:#15803d}.toast.error{background:#b91c1c}.toast.info{background:#1f2a3c;border:1px solid #3a4a5f}
   @keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   /* Modal */
   #modalRoot:empty{display:none}
-  #modalRoot{position:fixed;inset:0;z-index:150;display:flex;align-items:center;justify-content:center;background:rgba(11,28,48,.45);padding:16px}
-  /* Print: only the print-area shows */
+  #modalRoot{position:fixed;inset:0;z-index:150;display:flex;align-items:center;justify-content:center;background:rgba(2,7,15,.7);padding:16px;backdrop-filter:blur(2px)}
+  /* Print: only the print-area shows (stays light — renders on white paper) */
   @media print{
     body>*:not(#printRoot){display:none !important}
     #printRoot{display:block !important}
     @page{ size:landscape; margin:10mm; }
   }
   #printRoot{display:none}
-  .btn-primary{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#000;color:#fff;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:.03em;min-height:40px}
-  .btn-primary:hover{background:#213145}
-  .btn-ghost{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid #c6c6cd;color:#0b1c30;border-radius:4px;font-size:12px;font-weight:700;background:#fff;min-height:40px}
-  .btn-ghost:hover{background:#e5eeff}
-  .btn-danger{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#ba1a1a;color:#fff;border-radius:4px;font-size:12px;font-weight:700;min-height:40px}
-  .ipt{width:100%;border:1px solid #c6c6cd;border-radius:4px;padding:8px 10px;font-size:14px;background:#fff}
-  .ipt:focus{outline:none;border-color:#000;box-shadow:0 0 0 1px #000}
-  .lbl{display:block;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#45464d;margin-bottom:4px}
-  .ttable{width:100%;border-collapse:collapse;font-size:14px}
-  .ttable th{text-align:left;padding:10px 12px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#45464d;border-bottom:1px solid #c6c6cd;background:#eff4ff;position:sticky;top:0}
-  .ttable td{padding:10px 12px;border-bottom:1px solid #e5eeff}
-  .ttable tbody tr:hover{background:#eff4ff;cursor:pointer}
-  .chip{padding:4px 10px;border-radius:4px;font-size:11px;font-weight:700;border:1px solid #c6c6cd;color:#45464d;background:#fff}
-  .chip.on{background:#000;color:#fff;border-color:#000}
+  .btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;background:#f97316;color:#fff;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;min-height:42px}
+  .btn-primary:hover{background:#fb8a3c}
+  .btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border:1px solid #3a4a5f;color:#d8e3fb;border-radius:8px;font-size:12px;font-weight:700;background:#152031;min-height:42px}
+  .btn-ghost:hover{background:#1f2a3c;border-color:#a78b7d}
+  .btn-danger{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;background:#b91c1c;color:#fff;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;min-height:42px}
+  .ipt{width:100%;border:1px solid #2a3548;border-radius:8px;padding:10px 12px;font-size:14px;background:#0c1626;color:#d8e3fb}
+  .ipt::placeholder{color:#7a8aa3}
+  .ipt:focus{outline:none;border-color:#f97316;box-shadow:0 0 0 1px #f97316}
+  .lbl{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9fb0cb;margin-bottom:4px}
+  .ttable{width:100%;border-collapse:collapse;font-size:14px;color:#d8e3fb}
+  .ttable th{text-align:left;padding:11px 14px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9fb0cb;border-bottom:1px solid #2a3548;background:#111c2d;position:sticky;top:0}
+  .ttable td{padding:11px 14px;border-bottom:1px solid #1c2738}
+  .ttable tbody tr:hover{background:#152031;cursor:pointer}
+  .chip{padding:6px 12px;border-radius:9999px;font-size:11px;font-weight:700;border:1px solid #3a4a5f;color:#b7c8e1;background:#152031;cursor:pointer}
+  .chip.on{background:#f97316;color:#fff;border-color:#f97316}
+  .navlink{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;color:#9fb0cb;font-weight:600;border-left:3px solid transparent;transition:all .12s}
+  .navlink:hover{background:#111c2d;color:#d8e3fb}
+  .navlink.active{background:rgba(249,115,22,.14);color:#ffb690;border-left-color:#f97316}
+  .navlink .material-symbols-outlined{font-size:20px}
+  /* Collapsible sidebar */
+  #navOpenBtn{display:none}
+  body.nav-collapsed #sidebar{display:none}
+  body.nav-collapsed #mainArea{margin-left:0 !important}
+  body.nav-collapsed #navOpenBtn{display:inline-flex}
 </style>
 </head>
 <body class="bg-background text-on-background antialiased h-screen overflow-hidden flex flex-col md:flex-row">
@@ -109,37 +124,38 @@
 </header>
 
 <!-- Desktop sidebar -->
-<nav class="hidden md:flex flex-col fixed left-0 top-0 bottom-0 w-64 p-md gap-sm bg-surface-container-low border-r border-outline-variant z-40">
-  <div class="flex items-center gap-sm mb-lg px-xs mt-sm">
-    <span class="material-symbols-outlined text-primary text-headline-xl" data-icon="pets">pets</span>
-    <span class="font-headline-md font-bold text-primary">HoundTool</span>
-  </div>
-  <div class="flex items-center gap-sm p-sm mb-md bg-surface-container rounded-lg border border-outline-variant">
-    <div class="w-10 h-10 rounded bg-primary-container flex items-center justify-center text-on-primary-container font-bold">FM</div>
-    <div class="flex flex-col">
-      <span class="font-label-md text-primary">Fleet Manager</span>
-      <span class="font-body-sm text-on-surface-variant" id="navProject">LACC Project</span>
+<nav id="sidebar" class="hidden md:flex flex-col fixed left-0 top-0 bottom-0 w-64 p-md gap-sm bg-surface-container-low border-r border-outline-variant z-40">
+  <div class="flex items-center justify-between mb-lg mt-xs px-xs">
+    <div class="flex items-center gap-sm min-w-0">
+      <img src="logo.png" alt="HoundTool" class="w-9 h-9 rounded-md flex-shrink-0 object-contain" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'">
+      <span class="material-symbols-outlined text-primary text-headline-xl items-center" data-icon="pets" style="display:none">pets</span>
+      <div class="flex flex-col leading-tight min-w-0">
+        <span class="font-headline-md font-bold text-on-surface truncate">HoundTool</span>
+        <span class="text-[10px] font-bold tracking-widest text-primary uppercase">Precision Tracking</span>
+      </div>
     </div>
+    <button onclick="toggleSidebar()" class="text-on-surface-variant hover:text-primary p-1 flex-shrink-0" title="Hide sidebar"><span class="material-symbols-outlined">chevron_left</span></button>
   </div>
   <ul class="flex flex-col gap-xs flex-1" id="navList">
     <li><a class="navlink" data-view="dashboard" href="#"><span class="material-symbols-outlined" data-icon="dashboard">dashboard</span><span class="font-label-md">Dashboard</span></a></li>
     <li><a class="navlink" data-view="assets" href="#"><span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span><span class="font-label-md">Assets</span></a></li>
-    <li><a class="navlink" data-view="summary" href="#"><span class="material-symbols-outlined" data-icon="category">category</span><span class="font-label-md">Summary</span></a></li>
+    <li><a class="navlink" data-view="foremen" href="#"><span class="material-symbols-outlined" data-icon="engineering">engineering</span><span class="font-label-md">Foremen</span></a></li>
     <li><a class="navlink" data-view="orders" href="#"><span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span><span class="font-label-md">Orders</span></a></li>
     <li><a class="navlink" data-view="audits" href="#"><span class="material-symbols-outlined" data-icon="fact_check">fact_check</span><span class="font-label-md">Audits</span></a></li>
     <li><a class="navlink" data-view="reports" href="#"><span class="material-symbols-outlined" data-icon="description">description</span><span class="font-label-md">Foreman Reports</span></a></li>
     <li><a class="navlink" data-view="lost" href="#"><span class="material-symbols-outlined" data-icon="search_off">search_off</span><span class="font-label-md">Lost Tracker</span></a></li>
   </ul>
-  <button class="flex items-center justify-center gap-sm w-full py-sm bg-surface-container-lowest border border-outline-variant text-primary font-label-md rounded-lg hover:bg-surface-container transition-colors min-h-[44px] mb-sm" data-action="open-import">
+  <button class="flex items-center justify-center gap-sm w-full py-sm bg-surface-container border border-outline-variant text-on-surface font-label-md rounded-lg hover:bg-surface-container-high transition-colors min-h-[44px] mb-sm" data-action="open-import">
     <span class="material-symbols-outlined" data-icon="upload_file">upload_file</span> Import ToolHound
   </button>
-  <button class="flex items-center justify-center gap-sm w-full py-sm bg-primary text-on-primary font-label-md rounded-lg hover:bg-inverse-surface transition-colors min-h-[44px]" data-action="add-tool">
-    <span class="material-symbols-outlined" data-icon="add">add</span> Add Tool On-Site
+  <button class="btn-primary w-full" data-action="add-tool" style="min-height:48px">
+    <span class="material-symbols-outlined" data-icon="qr_code_scanner">qr_code_scanner</span> Scan Asset
   </button>
 </nav>
+<button id="navOpenBtn" onclick="toggleSidebar()" class="fixed top-3 left-3 z-50 bg-primary-container text-white rounded-full w-11 h-11 items-center justify-center shadow-lg" title="Show sidebar"><span class="material-symbols-outlined">menu</span></button>
 
 <!-- Main -->
-<main class="flex-1 flex flex-col h-full overflow-y-auto mt-16 md:mt-0 md:ml-64 p-margin-mobile md:p-margin-desktop bg-surface pb-24 md:pb-margin-desktop">
+<main id="mainArea" class="flex-1 flex flex-col h-full overflow-y-auto mt-16 md:mt-0 md:ml-64 p-margin-mobile md:p-margin-desktop bg-surface pb-24 md:pb-margin-desktop">
   <div id="viewRoot"></div>
 </main>
 
@@ -226,9 +242,9 @@ function assetKey(item_id, part_no, description){
 
 function statusBadge(status){
   const s=(status||'').trim();
-  const map={'On Site':['#166534','check_circle'],'Transferred':['#1e40af','swap_horiz'],'Returned':['#6d7589','undo'],'Lost':['#ba1a1a','warning'],'Damaged':['#9a3412','build']};
-  const [bg,icon]=map[s]||['#6d7589','help'];
-  return `<span class="inline-flex items-center gap-1 px-2 py-1 text-white rounded-DEFAULT font-label-sm text-label-sm" style="background:${bg}"><span class="material-symbols-outlined text-[14px]">${icon}</span>${esc(s||'—')}</span>`;
+  const map={'On Site':['#fb923c','rgba(249,115,22,.16)','check_circle'],'Transferred':['#93ccff','rgba(147,204,255,.14)','swap_horiz'],'Returned':['#a9bad3','rgba(167,139,125,.16)','undo'],'Lost':['#ffb4ab','rgba(185,28,28,.20)','warning'],'Damaged':['#fbbf24','rgba(251,191,36,.14)','build']};
+  const [fg,bg,icon]=map[s]||['#a9bad3','rgba(167,139,125,.16)','help'];
+  return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-label-sm text-label-sm" style="background:${bg};color:${fg}"><span class="material-symbols-outlined text-[14px]">${icon}</span>${esc(s||'—')}</span>`;
 }
 
 /* ============================================================
@@ -455,7 +471,7 @@ function requirePin(){
     if(_pinOk){ res(true); return; }
     modal(modalCard(`
       <div class="p-lg">
-        <h3 class="font-headline-md text-primary mb-sm">Manager PIN</h3>
+        <h3 class="font-headline-md text-on-surface mb-sm">Manager PIN</h3>
         <p class="font-body-sm text-on-surface-variant mb-md">Enter PIN to continue.</p>
         <input id="pinInput" type="password" inputmode="numeric" class="w-full border border-outline-variant rounded p-sm mb-md" placeholder="PIN" autofocus/>
         <div class="flex gap-sm justify-end">
@@ -499,16 +515,19 @@ function blankAsset(){ return {item_id:'',serial:'',part_no:'',description:'',ca
 
 function openImport(){
   modal(modalCard(`
-   <div class="p-lg">
-     <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-primary">Import ToolHound Report</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
-     <p class="font-body-sm text-on-surface-variant mb-md">Drag &amp; drop or choose a ToolHound export. <b>CSV/Excel</b> imports instantly; <b>PDF invoices</b> (incl. scanned) are read by their <b>individual tagged line items</b> — review before committing.</p>
-     <label id="impDrop" class="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-lg p-xl cursor-pointer hover:bg-surface-container transition-all">
-       <span class="material-symbols-outlined text-[40px] text-outline mb-sm">cloud_upload</span>
-       <span class="font-label-md text-primary">Drop a file here, or click to choose (.csv .xlsx .xls .pdf)</span>
+   <div class="bg-grid p-lg">
+     <div class="flex justify-between items-center mb-lg"><div class="flex items-center gap-sm"><span class="material-symbols-outlined text-primary-container">qr_code_2</span><h3 class="font-headline-md text-on-surface">Import ToolHound Data</h3></div><button data-action="close-modal" class="text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined">close</span></button></div>
+     <p class="font-body-md text-on-surface-variant text-center mb-lg max-w-xl mx-auto">Upload an invoice, inventory list, or PDF report. CSV/Excel imports instantly; PDF invoices (incl. scanned) are read by their <b>individual tagged line items</b> — review before committing.</p>
+     <label id="impDrop" class="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-xl cursor-pointer transition-all" style="border-color:#f97316">
+       <div class="w-16 h-16 rounded-full flex items-center justify-center mb-md" style="background:rgba(249,115,22,.12)"><span class="material-symbols-outlined text-[34px] text-primary-container">upload_file</span></div>
+       <span class="font-headline-md text-on-surface mb-xs">Drag &amp; drop your document here</span>
+       <span class="font-body-sm text-on-surface-variant mb-md">Supports PDF, CSV, and Excel.</span>
+       <span class="btn-primary" style="pointer-events:none">Browse Files</span>
        <input id="impFile" type="file" accept=".csv,.xlsx,.xls,.pdf" class="hidden">
      </label>
-     <div id="impStatus" class="mt-md font-body-sm text-on-surface-variant"></div>
-   </div>`,'max-w-2xl'));
+     <div id="impStatus" class="mt-md font-body-sm text-on-surface-variant text-center"></div>
+     <div class="flex items-center justify-center gap-1 mt-md text-on-surface-variant font-label-md"><span class="material-symbols-outlined text-[14px]">lock</span> SECURE LOCAL PARSING — YOUR FILE NEVER LEAVES THIS DEVICE</div>
+   </div>`,'max-w-3xl'));
   document.getElementById('impFile').addEventListener('change', handleImportFile);
   wireDropzone(document.getElementById('impDrop'), document.getElementById('impStatus'));
 }
@@ -699,7 +718,7 @@ function diffImport(items){
 
 function showImportReview(fileName, parsed, diff){
   window._importDiff=diff; window._importMeta={fileName,type:parsed.type};
-  const warn = parsed.warnings&&parsed.warnings.length ? `<div class="rounded p-sm mb-md font-body-sm" style="background:#fff7ed;color:#8a4408;border:1px solid #f5d9b8">⚠ ${esc(parsed.warnings.join(' '))}</div>` : '';
+  const warn = parsed.warnings&&parsed.warnings.length ? `<div class="rounded p-sm mb-md font-body-sm" style="background:rgba(249,115,22,.12);color:#ffb690;border:1px solid rgba(249,115,22,.3)">⚠ ${esc(parsed.warnings.join(' '))}</div>` : '';
   const card=(n,label,bg,fg)=>`<div class="rounded p-sm text-center" style="background:${bg}"><div class="font-headline-lg" style="color:${fg}">${n}</div><div class="font-label-sm" style="color:${fg}">${label}</div></div>`;
   const section=(title,fg,desc,rows,open)=>!rows.length?'':`<details ${open?'open':''} class="mb-sm border border-outline-variant rounded overflow-hidden">
       <summary class="flex items-center justify-between p-sm cursor-pointer select-none" style="background:${fg}14">
@@ -708,17 +727,17 @@ function showImportReview(fileName, parsed, diff){
       <div class="divide-y divide-outline-variant" style="max-height:40vh;overflow-y:auto">${rows.join('')}</div></details>`;
   modal(modalCard(`
     <div class="p-lg">
-      <div class="flex justify-between items-center mb-xs"><h3 class="font-headline-md text-primary">Review import</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+      <div class="flex justify-between items-center mb-xs"><h3 class="font-headline-md text-on-surface">Review import</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
       <p class="font-body-sm text-on-surface-variant mb-md">${esc(fileName)} · detected <b>${esc(parsed.type)}</b> report</p>
       ${warn}
       <div class="grid grid-cols-3 gap-sm mb-md">
-        ${card(diff.added.length,'NEW','#dcfce7','#166534')}
-        ${card(diff.updated.length,'UPDATED','#dbeafe','#1e40af')}
-        ${card(diff.removed.length,'NOT IN FILE','#fef3c7','#92400e')}
+        ${card(diff.added.length,'NEW','rgba(34,197,94,.14)','#4ade80')}
+        ${card(diff.updated.length,'UPDATED','rgba(59,130,246,.16)','#93ccff')}
+        ${card(diff.removed.length,'NOT IN FILE','rgba(251,191,36,.14)','#fbbf24')}
       </div>
-      ${section('New tools','#166534','will be added',diff.added.map((x,i)=>impRow('added',i,x)),diff.added.length<=25)}
-      ${section('Updates','#1e40af','cost / description changes',diff.updated.map((x,i)=>impRow('updated',i,x)),diff.updated.length<=25)}
-      ${section('Not in this file','#92400e','tick to mark Returned (off by default)',diff.removed.map((x,i)=>impRow('removed',i,x)),false)}
+      ${section('New tools','#4ade80','will be added',diff.added.map((x,i)=>impRow('added',i,x)),diff.added.length<=25)}
+      ${section('Updates','#93ccff','cost / description changes',diff.updated.map((x,i)=>impRow('updated',i,x)),diff.updated.length<=25)}
+      ${section('Not in this file','#fbbf24','tick to mark Returned (off by default)',diff.removed.map((x,i)=>impRow('removed',i,x)),false)}
       <div class="flex gap-sm justify-end mt-lg items-center">
         <span class="font-body-sm text-on-surface-variant mr-auto">Untick any row you don't want.</span>
         <button class="btn-ghost" data-action="close-modal">Cancel</button>
@@ -765,19 +784,17 @@ function stripMeta(o){ const c={...o}; delete c._key; delete c._include; delete 
 const VIEWS = {
   dashboard: renderDashboard,
   assets:    renderAssets,
-  summary:   renderSummary,
+  foremen:   renderForemen,
   orders:    renderOrders,
   audits:    renderAudits,
   reports:   renderReports,
   lost:      renderLost
 };
+function toggleSidebar(){ document.body.classList.toggle('nav-collapsed'); try{ localStorage.setItem('navCollapsed', document.body.classList.contains('nav-collapsed')?'1':'0'); }catch(e){} }
 function setView(v){ currentView=v; if(location.hash!=='#'+v){ try{location.hash=v;}catch(e){} } markNav(); renderCurrent(); window.scrollTo(0,0); }
 function renderCurrent(){ const fn=VIEWS[currentView]||renderDashboard; const root=document.getElementById('viewRoot'); try{ fn(root); }catch(e){ console.error(e); root.innerHTML='<div class="p-md text-error">Render error: '+esc(e.message)+'</div>'; } }
 function markNav(){
-  document.querySelectorAll('.navlink').forEach(a=>{
-    const on=a.dataset.view===currentView;
-    a.className='navlink flex items-center gap-sm px-sm py-xs rounded-lg transition-all active:translate-x-1 '+(on?'bg-secondary-container text-on-secondary-container font-bold':'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high');
-  });
+  document.querySelectorAll('.navlink').forEach(a=>{ a.classList.toggle('active', a.dataset.view===currentView); });
   document.querySelectorAll('.mnav').forEach(a=>{
     const on=a.dataset.view===currentView;
     a.className='mnav flex flex-col items-center justify-center px-3 py-1 active:scale-90 transition-transform '+(on?'bg-secondary-container text-on-secondary-container rounded-full':'text-on-surface-variant rounded');
@@ -786,7 +803,7 @@ function markNav(){
 
 function pageHeader(title, subtitle, actionsHtml){
   return `<header class="mb-lg flex justify-between items-end flex-wrap gap-sm">
-    <div><h1 class="font-headline-xl text-headline-xl text-primary mb-xs">${esc(title)}</h1>
+    <div><h1 class="font-headline-xl text-headline-xl text-on-surface mb-xs">${esc(title)}</h1>
     <p class="font-body-md text-on-surface-variant">${esc(subtitle||'')}</p></div>
     <div class="flex gap-sm flex-wrap">${actionsHtml||''}</div></header>`;
 }
@@ -823,11 +840,8 @@ function renderAssets(root){
     }).sort((a,b)=>String(a.item_id||a.description).localeCompare(String(b.item_id||b.description)));
   const chips=['','On Site','Transferred','Returned','Lost','Damaged'].map(s=>`<button data-action="asset-filter" data-st="${esc(s)}" class="chip ${assetStatusFilter===s?'on':''}">${s||'All'}</button>`).join('');
   const fmOpts=['<option value="">All foremen</option>','<option value="__none__">Unassigned</option>'].concat(foremanNames().map(n=>`<option value="${esc(n)}" ${assetForeman===n?'selected':''}>${esc(n)}</option>`)).join('');
-  root.innerHTML = pageHeader('Inventory Registry', filtered.length+' of '+arr.length+' assets · '+money(monthlyCharge())+'/mo on site',
-    `<button class="btn-ghost" data-action="open-import"><span class="material-symbols-outlined text-[18px]">upload_file</span>Import</button>
-     <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button>
-     <button class="btn-primary" data-action="add-tool"><span class="material-symbols-outlined text-[18px]">add</span>Add Tool</button>`)
-  + `<div class="flex flex-wrap gap-sm items-center mb-md">
+  const modeToggle=`<button data-action="assets-mode" data-m="table" class="chip ${assetsViewMode==='table'?'on':''}">Table</button><button data-action="assets-mode" data-m="summary" class="chip ${assetsViewMode==='summary'?'on':''}">By category</button>`;
+  const tableHtml = `<div class="flex flex-wrap gap-sm items-center mb-md">
        <div class="relative flex-1 min-w-[200px]"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
        <input id="assetSearch" value="${esc(assetQuery)}" oninput="assetSearchInput(this.value)" placeholder="Search ID, serial, description, foreman…" class="ipt pl-9" autocomplete="off"></div>
        <span id="assetCountLbl" class="font-body-sm text-on-surface-variant whitespace-nowrap"></span>
@@ -838,16 +852,47 @@ function renderAssets(root){
        <th>Asset ID</th><th>Name / Model</th><th>Status</th><th class="text-right">$/mo</th><th>Assigned</th><th class="text-center">Verified</th><th></th></tr></thead><tbody id="assetRows">`
      + filtered.map(a=>{ const hay=[a.item_id,a.serial,a.description,a.category,a.assigned_to,a.part_no].join(' ').toLowerCase();
        return `<tr data-action="asset-edit" data-key="${esc(a._key)}" data-search="${esc(hay)}">
-         <td class="font-bold text-primary">${esc(a.item_id||a.part_no||'—')}</td>
-         <td><div class="font-semibold">${esc(a.description||'—')}</div><div class="font-body-sm text-on-surface-variant">${esc(a.category||'')}${a.source?' · '+esc(a.source):''}</div></td>
+         <td><div class="flex items-center gap-2"><span class="material-symbols-outlined text-on-surface-variant text-[18px] flex-shrink-0">handyman</span><span class="mono font-bold" style="color:#ffb690">${esc(a.item_id||a.part_no||'—')}</span></div></td>
+         <td><div class="font-semibold text-on-surface">${esc(a.description||'—')}</div><div class="font-body-sm text-on-surface-variant">${esc(a.category||'')}${a.source?' · '+esc(a.source):''}</div></td>
          <td>${statusBadge(a.status)}</td>
-         <td class="text-right font-bold">${a.unit_cost?money2(a.unit_cost):'—'}</td>
-         <td>${esc(a.assigned_to||'—')}</td>
-         <td class="text-center">${(a.verified||'')==='Yes'?'<span class="material-symbols-outlined text-[18px]" style="color:#166534">check_circle</span>':((a.verified||'')==='Missing'?'<span class="material-symbols-outlined text-[18px]" style="color:#ba1a1a">cancel</span>':'<span class="text-outline">—</span>')}</td>
+         <td class="text-right font-bold mono">${a.unit_cost?money2(a.unit_cost):'—'}</td>
+         <td>${a.assigned_to?`<span class="inline-flex items-center gap-2"><span class="w-6 h-6 rounded-full bg-secondary-container text-on-secondary-container text-[10px] font-bold inline-flex items-center justify-center flex-shrink-0">${esc(initials(a.assigned_to))}</span><span class="text-on-surface">${esc(a.assigned_to)}</span></span>`:'<span class="text-on-surface-variant italic">Unassigned</span>'}</td>
+         <td class="text-center">${(a.verified||'')==='Yes'?'<span class="material-symbols-outlined text-[18px]" style="color:#4ade80">check_circle</span>':((a.verified||'')==='Missing'?'<span class="material-symbols-outlined text-[18px]" style="color:#ffb4ab">cancel</span>':'<span class="text-outline">—</span>')}</td>
          <td><span class="material-symbols-outlined text-on-surface-variant">chevron_right</span></td></tr>`;}).join('')
      + `</tbody></table></div>`
      : emptyState('inventory_2', arr.length? 'No assets match the filter.' : 'No assets yet — Import a ToolHound report or Add a Tool.'));
-  applyAssetSearch();
+  root.innerHTML = pageHeader('Inventory Registry', filtered.length+' of '+arr.length+' assets · '+money(monthlyCharge())+'/mo on site',
+    `<button class="btn-ghost" data-action="open-import"><span class="material-symbols-outlined text-[18px]">upload_file</span>Import</button>
+     <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button>
+     <button class="btn-primary" data-action="add-tool"><span class="material-symbols-outlined text-[18px]">add</span>Add Tool</button>`)
+   + `<div class="flex gap-1 mb-md">${modeToggle}</div>`
+   + (assetsViewMode==='summary' ? summaryGridHtml() : tableHtml);
+  if(assetsViewMode==='table') applyAssetSearch();
+}
+function renderForemen(root){
+  const onsite=assetsArr().filter(onSite);
+  const names=foremanNames();
+  const byFm={}; const unassigned=[];
+  onsite.forEach(a=>{ const n=(a.assigned_to||'').trim(); if(n){ (byFm[n]=byFm[n]||[]).push(a); } else unassigned.push(a); });
+  names.forEach(n=>{ if(!byFm[n]) byFm[n]=[]; });
+  const _mo=tools=>tools.reduce((s,a)=>s+num(a.unit_cost)*(parseInt(a.qty)||1),0);
+  const cards=Object.keys(byFm).sort((a,b)=>a.localeCompare(b)).map(n=>foremanCard(n, byFm[n].length, _mo(byFm[n]), false));
+  if(unassigned.length) cards.push(foremanCard('Unassigned', unassigned.length, _mo(unassigned), true));
+  root.innerHTML = pageHeader('Foremen', names.length+' on roster · shared with the attendance app',
+    `<button class="btn-ghost" data-action="fm-refresh"><span class="material-symbols-outlined text-[18px]">sync</span>Sync roster</button>`)
+   + (cards.length ? `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">`+cards.join('')+`</div>`
+      : emptyState('engineering','No foremen on the roster yet.'));
+}
+function initials(n){ return (n||'').split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase(); }
+function foremanCard(name, count, mo, isUnassigned){
+  const ini=isUnassigned?'?':initials(name);
+  return `<div class="bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
+    <div class="flex items-center gap-sm">
+      <div class="w-11 h-11 rounded-full ${isUnassigned?'bg-surface-container text-on-surface-variant':'bg-primary-container text-white'} flex items-center justify-center font-bold flex-shrink-0">${esc(ini)}</div>
+      <div class="min-w-0"><div class="font-headline-md text-on-surface truncate">${esc(name)}</div><div class="font-body-sm text-on-surface-variant">${count} tool${count===1?'':'s'} · ${money(mo)}/mo</div></div>
+    </div>
+    <button class="btn-ghost w-full justify-center" data-action="fm-view" data-key="${esc(isUnassigned?'__none__':name)}"><span class="material-symbols-outlined text-[18px]">inventory_2</span>View tools</button>
+  </div>`;
 }
 // ---- Foreman roster (shared with the foreman-attendance app) ----
 // Pulls the same crew roster the attendance app uses, so foreman identities match
@@ -883,7 +928,7 @@ function applyAssetSearch(){
 
 function openAddTool(){
   modal(modalCard(`<div class="p-lg">
-    <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-primary">Add Tool On-Site</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+    <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-on-surface">Add Tool On-Site</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
     <p class="font-body-sm text-on-surface-variant mb-md">For extra tools found on site that aren't on a ToolHound report.</p>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
       <div class="sm:col-span-2"><label class="lbl">Tool Type / Description</label><input id="atDesc" class="ipt" placeholder="e.g. DeWalt 20V Hammer Drill" oninput="atAutoCat()"></div>
@@ -913,7 +958,7 @@ function openAssetEdit(key){
   const a=state.assets[key]; if(!a) return;
   const opts=['On Site','Transferred','Returned','Lost','Damaged'].map(s=>`<option ${a.status===s?'selected':''}>${s}</option>`).join('');
   modal(modalCard(`<div class="p-lg">
-    <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-primary">${esc(a.item_id||a.description||'Asset')}</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+    <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-on-surface">${esc(a.item_id||a.description||'Asset')}</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
       <div class="sm:col-span-2"><label class="lbl">Description</label><input id="aeDesc" class="ipt" value="${esc(a.description)}"></div>
       <div><label class="lbl">Category</label><input id="aeCat" class="ipt" value="${esc(a.category)}"></div>
@@ -971,12 +1016,12 @@ function renderOrders(root){
     document.getElementById('orderDropFile').addEventListener('change', e=>processOrderForm(e.target.files[0], document.getElementById('orderDropStatus'))); }
 }
 function orderCard(o){
-  const st=(o.status||'Pending'); const c={'Pending':'#fd651e','Delivered':'#166534','Cancelled':'#6d7589'}[st]||'#6d7589';
+  const st=(o.status||'Pending'); const c={'Pending':'#f97316','Delivered':'#22c55e','Cancelled':'#6d7589'}[st]||'#6d7589';
   return `<div class="bg-surface-container-lowest border border-outline-variant rounded relative overflow-hidden">
     <div class="h-1 w-full" style="background:${c}"></div>
     <div class="p-md">
       <div class="flex justify-between items-start mb-sm">
-        <div><div class="font-headline-md text-primary">${esc(o.description||'Order')}</div><div class="font-body-sm text-on-surface-variant">${esc(o.po?('PO '+o.po+' · '):'')}${esc(o.employee||'')}</div></div>
+        <div><div class="font-headline-md text-on-surface">${esc(o.description||'Order')}</div><div class="font-body-sm text-on-surface-variant">${esc(o.po?('PO '+o.po+' · '):'')}${esc(o.employee||'')}</div></div>
         <span class="inline-flex items-center px-2 py-1 rounded-DEFAULT font-label-sm text-white" style="background:${c}">${esc(st)}</span>
       </div>
       <div class="grid grid-cols-3 gap-sm font-body-sm mb-md">
@@ -993,7 +1038,7 @@ function orderCard(o){
 }
 function openOrderForm(){
   modal(modalCard(`<div class="p-lg">
-    <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-primary">New Order</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+    <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-on-surface">New Order</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
       <div class="sm:col-span-2"><label class="lbl">Description</label><input id="odDesc" class="ipt" placeholder="What is being ordered"></div>
       <div><label class="lbl">Qty</label><input id="odQty" type="number" class="ipt" value="1"></div>
@@ -1053,7 +1098,7 @@ function showOrderReview(fileName, items){
     <td><input class="ipt" value="${esc(it.description)}" onchange="window._orderImport[${i}].description=this.value"></td>
     <td style="width:96px"><input type="number" min="1" class="ipt text-center" value="${it.qty}" onchange="window._orderImport[${i}].qty=parseInt(this.value)||1"></td></tr>`).join('');
   modal(modalCard(`<div class="p-lg">
-    <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-primary">Review order form</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+    <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-on-surface">Review order form</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
     <p class="font-body-sm text-on-surface-variant mb-md">${window._orderImport.length} line item(s) detected from <b>${esc(fileName)}</b>. Best-effort — edit text, fix quantities, untick noise, then create.</p>
     <div class="overflow-y-auto border border-outline-variant rounded" style="max-height:50vh"><table class="ttable"><thead><tr><th></th><th>Description</th><th class="text-center">Qty</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="flex gap-sm justify-end mt-lg"><button class="btn-ghost" data-action="close-modal">Cancel</button><button class="btn-primary" data-action="orders-commit">Create Orders</button></div>
@@ -1089,11 +1134,14 @@ function renderAudits(root){
   else if(auditFilter==='verified') list=onsite.filter(a=>(a.verified||'')==='Yes');
   else if(auditFilter==='missing') list=onsite.filter(a=>(a.verified||'')==='Missing');
   const chips=[['all','All'],['unverified','Unverified'],['verified','Verified'],['missing','Missing']].map(([k,l])=>`<button data-action="audit-filter" data-st="${k}" class="chip ${auditFilter===k?'on':''}">${l}</button>`).join('');
+  const modeToggle=`<button data-action="audit-mode" data-m="audit" class="chip ${auditMode==='audit'?'on':''}">Mark on-site</button><button data-action="audit-mode" data-m="summary" class="chip ${auditMode==='summary'?'on':''}">Summary</button>`;
   root.innerHTML = pageHeader('On-Site Audit', verified+' / '+total+' verified · '+missing+' missing',
     `<button class="btn-ghost" data-action="audit-reset">Reset</button><button class="btn-primary" data-action="audit-summary"><span class="material-symbols-outlined text-[18px]">summarize</span>Generate Summary</button>`)
-  + `<div class="mb-md"><div class="w-full bg-outline-variant h-2 rounded-full overflow-hidden"><div style="width:${pct}%;background:#000;height:100%"></div></div></div>`
-  + `<div class="flex gap-1 flex-wrap mb-md">${chips}</div>`
-  + (list.length ? `<div class="flex flex-col gap-sm">`+list.map(a=>auditCard(a)).join('')+`</div>` : emptyState('fact_check', total?'Nothing in this filter.':'No on-site tools to audit yet.'));
+  + `<div class="flex gap-1 mb-md">${modeToggle}</div>`
+  + (auditMode==='summary' ? summaryGridHtml()
+     : `<div class="mb-md"><div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden"><div style="width:${pct}%;background:#f97316;height:100%"></div></div></div>`
+       + `<div class="flex gap-1 flex-wrap mb-md">${chips}</div>`
+       + (list.length ? `<div class="flex flex-col gap-sm">`+list.map(a=>auditCard(a)).join('')+`</div>` : emptyState('fact_check', total?'Nothing in this filter.':'No on-site tools to audit yet.')));
 }
 function auditCard(a){
   const v=(a.verified||''); const isV=v==='Yes', isM=v==='Missing';
@@ -1103,7 +1151,7 @@ function auditCard(a){
     </div>
     <div class="p-md flex-grow flex flex-col sm:flex-row sm:items-center justify-between gap-sm">
       <div><div class="font-label-sm text-on-surface-variant uppercase tracking-widest">${esc(a.item_id||a.part_no||'—')}</div>
-        <div class="font-headline-md text-primary ${isV?'line-through opacity-70':''}">${esc(a.description||'—')}</div>
+        <div class="font-headline-md text-on-surface ${isV?'line-through opacity-70':''}">${esc(a.description||'—')}</div>
         <div class="font-body-sm text-on-surface-variant">${esc(a.category||'')}${a.assigned_to?' · '+esc(a.assigned_to):''}${isV&&a.verifiedAt?' · verified':''}</div></div>
       <div class="flex gap-sm">
         ${isM?`<button class="btn-ghost" data-action="audit-found" data-key="${esc(a._key)}">Found It</button>`
@@ -1136,6 +1184,10 @@ function dispatchAction4(a, el){
     case 'order-save': saveOrder(); return true;
     case 'order-upload': { const f=document.getElementById('orderDropFile'); if(f) f.click(); return true; }
     case 'orders-commit': commitOrders(); return true;
+    case 'assets-mode': assetsViewMode=el.dataset.m; renderCurrent(); return true;
+    case 'audit-mode': auditMode=el.dataset.m; renderCurrent(); return true;
+    case 'fm-view': assetForeman=el.dataset.key; assetsViewMode='table'; setView('assets'); return true;
+    case 'fm-refresh': loadCrewForemen().then(()=>{ toast('Roster synced','success'); renderCurrent(); }); return true;
     case 'order-receive': orderSetStatus(key,'Delivered'); return true;
     case 'order-cancel': orderSetStatus(key,'Cancelled'); return true;
     case 'order-toinv': orderToInventory(key); return true;
@@ -1150,34 +1202,25 @@ function dispatchAction4(a, el){
   return false;
 }
 /* ---------- Foreman Reports ---------- */
-/* ---------- Summary (all tools grouped by category) ---------- */
-let summaryOpen={}, summaryDefaultOpen=true;
-function renderSummary(root){
+/* ---------- Summary grid (embedded as a view mode in Assets + Audits) ---------- */
+let assetsViewMode='table', auditMode='audit';
+function summaryGridHtml(){
   const groups=groupForReconcile(assetsArr());          // same categorization as the foreman report
-  const onsite=assetsArr().filter(onSite);
-  const totalTools=groups.reduce((s,g)=>s+g.total,0);
-  const totalMo=onsite.reduce((s,a)=>s+num(a.unit_cost)*(parseInt(a.qty)||1),0);
   const fmBy={}; assetsArr().forEach(a=>{ if(a.item_id) fmBy[a.item_id]=a.assigned_to||''; });
-  let html=pageHeader('Tool Summary', totalTools+' tools on site · '+groups.length+' categories · '+money(totalMo)+'/mo',
-    `<button class="btn-ghost" data-action="print-summary"><span class="material-symbols-outlined text-[18px]">print</span>Print</button>
-     <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button>`);
-  html+=`<div class="flex gap-1 mb-md flex-wrap"><button data-action="sum-expand" class="chip">Expand all</button><button data-action="sum-collapse" class="chip">Collapse all</button></div>`;
-  if(!groups.length){ root.innerHTML=html+emptyState('category','No on-site tools to summarize. Import a ToolHound report first.'); return; }
-  html+=groups.map(g=>{
-    const open=(g.category in summaryOpen)?summaryOpen[g.category]:summaryDefaultOpen;
+  if(!groups.length) return emptyState('category','No on-site tools to summarize. Import a ToolHound report first.');
+  return `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">`+groups.map(g=>{
     const tools=g.lines.flatMap(l=>l.tools).sort((a,b)=>String(a.description).localeCompare(String(b.description)));
     const mo=tools.reduce((s,t)=>s+num(t.unit_cost),0);
-    return `<div class="bg-surface-container-lowest border border-outline-variant rounded mb-sm overflow-hidden">
-      <button data-action="sum-toggle" data-key="${esc(g.category)}" class="w-full flex items-center justify-between p-md hover:bg-surface-container text-left">
-        <div class="flex items-center gap-sm"><span class="material-symbols-outlined text-on-surface-variant">${open?'expand_more':'chevron_right'}</span><span class="font-headline-md text-primary">${esc(g.category)}</span><span class="chip on">${g.total}</span></div>
-        <span class="font-bold text-primary whitespace-nowrap">${money(mo)}/mo</span>
-      </button>
-      ${open?`<div class="border-t border-outline-variant overflow-x-auto"><table class="ttable"><thead><tr><th>Item ID</th><th>Description</th><th>Assigned</th><th class="text-right">$/mo</th></tr></thead><tbody>`+
-        tools.map(t=>`<tr><td class="font-bold text-primary">${esc(t.item_id||'—')}</td><td>${esc(t.description)}</td><td class="text-on-surface-variant">${esc(fmBy[t.item_id]||'—')}</td><td class="text-right">${t.unit_cost?money2(t.unit_cost):'—'}</td></tr>`).join('')
-        +`</tbody></table></div>`:''}
-    </div>`;
-  }).join('');
-  root.innerHTML=html;
+    return `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-hidden flex flex-col">
+      <div class="p-md border-b border-outline-variant">
+        <div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(g.category)}</span><span class="chip on">${g.total}</span></div>
+        <span class="font-body-sm text-on-surface-variant">${money(mo)}/mo</span></div>
+      <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:240px">
+        ${tools.map(t=>`<div class="flex items-center justify-between gap-sm px-md py-1.5">
+           <div class="min-w-0 truncate"><span class="font-bold text-primary font-body-sm">${esc(t.item_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((t.description||'').slice(0,32))}</span>${fmBy[t.item_id]?` <span class="font-label-sm text-on-surface-variant">· ${esc(fmBy[t.item_id])}</span>`:''}</div>
+           <span class="font-body-sm whitespace-nowrap">${t.unit_cost?money2(t.unit_cost):'—'}</span></div>`).join('')}
+      </div></div>`;
+  }).join('')+`</div>`;
 }
 
 function renderReports(root){
@@ -1187,19 +1230,19 @@ function renderReports(root){
   const total=visible.reduce((s,n)=>s+buckets[n].total,0);
   root.innerHTML = pageHeader('Foreman Reports', total+' tools on site across '+visible.length+' categories'+(excludedConsumableQty?' · +'+excludedConsumableQty+' bulk':''),'')
   + `<label id="reportsDrop" class="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-lg p-lg mb-gutter cursor-pointer hover:bg-surface-container transition-all">
-       <div class="flex items-center gap-sm mb-xs"><span class="material-symbols-outlined text-secondary text-[32px]">document_scanner</span><span class="font-headline-md text-primary">Drop a ToolHound invoice or asset export</span></div>
+       <div class="flex items-center gap-sm mb-xs"><span class="material-symbols-outlined text-secondary text-[32px]">document_scanner</span><span class="font-headline-md text-on-surface">Drop a ToolHound invoice or asset export</span></div>
        <span class="font-body-sm text-on-surface-variant text-center">Drag &amp; drop or click — CSV/Excel or PDF (scanned OK). Invoices are read by their <b>individual tagged line items</b>, then diffed against your assets to review.</span>
        <input id="reportsDropFile" type="file" accept=".csv,.xlsx,.xls,.pdf" class="hidden">
        <div id="reportsDropStatus" class="mt-sm font-body-sm text-on-surface-variant"></div>
      </label>`
   + `<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
       <div class="bg-surface-container-lowest border border-outline-variant rounded p-lg">
-        <div class="flex items-center gap-sm mb-sm"><span class="material-symbols-outlined text-secondary text-[28px]">checklist</span><h3 class="font-headline-md text-primary">Blank Count Checklist</h3></div>
+        <div class="flex items-center gap-sm mb-sm"><span class="material-symbols-outlined text-secondary text-[28px]">checklist</span><h3 class="font-headline-md text-on-surface">Blank Count Checklist</h3></div>
         <p class="font-body-md text-on-surface-variant mb-md">11×17 tabloid, bilingual EN/ES, with a blank COUNTED column. Print it, walk the site, count by hand — then enter counts in <b>Lost Tracker → Count &amp; Compare</b>.</p>
         <button class="btn-primary" data-action="print-checklist"><span class="material-symbols-outlined text-[18px]">print</span>Generate 11×17 Checklist</button>
       </div>
       <div class="bg-surface-container-lowest border border-outline-variant rounded p-lg">
-        <div class="flex items-center gap-sm mb-sm"><span class="material-symbols-outlined text-primary text-[28px]">description</span><h3 class="font-headline-md text-primary">Foreman Summary Report</h3></div>
+        <div class="flex items-center gap-sm mb-sm"><span class="material-symbols-outlined text-primary text-[28px]">description</span><h3 class="font-headline-md text-on-surface">Foreman Summary Report</h3></div>
         <p class="font-body-md text-on-surface-variant mb-md">Filled asset list grouped by category with status + signature lines, for the record.</p>
         <div class="flex gap-sm flex-wrap"><button class="btn-primary" data-action="print-summary"><span class="material-symbols-outlined text-[18px]">print</span>Generate Summary</button>
         <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button></div>
@@ -1232,7 +1275,7 @@ function renderLost(root){
      </div>`
   + (lost.length ? `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-x-auto"><table class="ttable"><thead><tr><th>Date</th><th>Item ID</th><th>Description</th><th>Category</th><th>Marked By</th><th class="text-right">Est. Value</th></tr></thead><tbody>`
       + lost.map(e=>`<tr><td>${esc(e.date)}</td><td class="font-bold">${esc(e.item_id||'—')}</td><td>${esc(e.description)}</td><td class="font-body-sm text-on-surface-variant">${esc(e.category)}</td><td>${esc(e.markedBy||'')}</td><td class="text-right font-bold">${money2(num(e.unit_cost))}</td></tr>`).join('')
-      + `<tr style="background:#fbe4e4"><td colspan="5" class="text-right font-bold">TOTAL</td><td class="text-right font-bold" style="color:#7f1212">${money2(value)}</td></tr></tbody></table></div>`
+      + `<tr style="background:rgba(185,28,28,.16)"><td colspan="5" class="text-right font-bold">TOTAL</td><td class="text-right font-bold" style="color:#ffb4ab">${money2(value)}</td></tr></tbody></table></div>`
       : emptyState('search_off','No tools marked lost yet. Use Count & Compare to find missing tools.'));
 }
 function renderReconcile(root, tabs){
@@ -1249,15 +1292,15 @@ function renderReconcile(root, tabs){
     totalMissing+=catMissing;
     if(!lineRows.length) return;
     const red=catMissing>0;
-    body+=`<tr style="background:${red?'#fdecec':'#eff4ff'}"><td colspan="4" class="font-bold" style="color:${red?'#b91c1c':'#0b1c30'}">${esc(g.category)} <span class="font-body-sm" style="color:#76777d">· ${g.total} on site${red?' · '+catMissing+' missing':''}</span></td></tr>`;
+    body+=`<tr style="background:${red?'rgba(185,28,28,.16)':'#111c2d'}"><td colspan="4" class="font-bold" style="color:${red?'#ffb4ab':'#d8e3fb'}">${esc(g.category)} <span class="font-body-sm" style="color:#9fb0cb">· ${g.total} on site${red?' · '+catMissing+' missing':''}</span></td></tr>`;
     lineRows.forEach(({line,key,miss})=>{ const red2=miss>0; const exp=reconExpandAll||!!lostExpanded[key]; const counted=lostCounts[key]!==undefined?lostCounts[key]:'';
-      body+=`<tr ${red2?'style="background:#fff6f6"':''}><td style="padding-left:24px">${esc(line.label)}${line.flagged?' <span style="color:#fbbf24">⚑</span>':''}</td>
+      body+=`<tr ${red2?'style="background:rgba(185,28,28,.10)"':''}><td style="padding-left:24px">${esc(line.label)}${line.flagged?' <span style="color:#fbbf24">⚑</span>':''}</td>
         <td class="text-center font-bold">${line.expected}</td>
         <td class="text-center"><input type="number" min="0" value="${esc(counted)}" onchange="lostCounts['${key}']=this.value;renderCurrent()" class="ipt" style="width:70px;text-align:center;${red2?'border-color:#b91c1c':''}"></td>
         <td class="text-center font-bold" style="color:${red2?'#b91c1c':'#76777d'}">${red2?miss:'—'}</td></tr>`;
-      if(exp){ body+=`<tr><td colspan="4" style="background:#fafafa"><div class="flex flex-wrap gap-2 py-1">`+
+      if(exp){ body+=`<tr><td colspan="4" style="background:#0c1626"><div class="flex flex-wrap gap-2 py-1">`+
         line.tools.map(t=>{ const sel=!!lostSel[t._key]; const cost=num(t.unit_cost);
-          return `<label class="inline-flex items-center gap-1 px-2 py-1 rounded cursor-pointer" style="border:1px solid ${sel?'#b91c1c':'#ccc'};background:${sel?'#fde2e2':'#fff'};font-size:11px"><input type="checkbox" ${sel?'checked':''} onchange="lostSel['${t._key}']=this.checked;if(!this.checked)delete lostSel['${t._key}'];updateReconBar()" style="accent-color:#b91c1c"><b>${esc(t.item_id||'—')}</b>${cost?' $'+cost:''}</label>`;
+          return `<label class="inline-flex items-center gap-1 px-2 py-1 rounded cursor-pointer" style="border:1px solid ${sel?'#b91c1c':'#3a4a5f'};background:${sel?'rgba(185,28,28,.22)':'#152031'};color:#d8e3fb;font-size:11px"><input type="checkbox" ${sel?'checked':''} onchange="lostSel['${t._key}']=this.checked;if(!this.checked)delete lostSel['${t._key}'];updateReconBar()" style="accent-color:#b91c1c"><b>${esc(t.item_id||'—')}</b>${cost?' $'+cost:''}</label>`;
         }).join('')+`</div></td></tr>`;
       } else {
         body+=`<tr><td colspan="4" style="padding-left:24px"><button data-action="recon-expand-line" data-key="${key}" class="chip">▸ ${line.tools.length} IDs</button></td></tr>`;
@@ -1374,9 +1417,6 @@ function dispatchAction5(a, el){
     case 'lost-tab': lostTab=el.dataset.t; lostSel={}; renderCurrent(); return true;
     case 'lost-report': buildLostReportPdf(); return true;
     case 'export-lost-xlsx': exportLostXlsx(); return true;
-    case 'sum-expand': summaryDefaultOpen=true; summaryOpen={}; renderCurrent(); return true;
-    case 'sum-collapse': summaryDefaultOpen=false; summaryOpen={}; renderCurrent(); return true;
-    case 'sum-toggle': { const cur=(key in summaryOpen)?summaryOpen[key]:summaryDefaultOpen; summaryOpen[key]=!cur; renderCurrent(); return true; }
     case 'recon-missing': lostMissingOnly=!lostMissingOnly; renderCurrent(); return true;
     case 'recon-expand': reconExpandAll=true; renderCurrent(); return true;
     case 'recon-collapse': reconExpandAll=false; lostExpanded={}; renderCurrent(); return true;
@@ -1417,6 +1457,7 @@ function dispatchAction(a, el, e){
 /* ============================================================
    Boot
    ============================================================ */
+try{ if(localStorage.getItem('navCollapsed')==='1') document.body.classList.add('nav-collapsed'); }catch(e){}
 startListeners();
 loadCrewForemen();
 markNav();
