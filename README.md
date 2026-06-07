@@ -1,4 +1,4 @@
-# HoundTool — Tool Tracker
+# YapHound — Tool Tracker
 
 Standalone static tool-tracking app for the LACC project crew. Migrated off the const-agent
 Python/Sheets stack onto the traditional Firebase + GitHub Pages stack (like cup-dashboard,
