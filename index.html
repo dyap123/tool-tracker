@@ -982,6 +982,17 @@ async function saveAssetEdit(key){
     unit_cost:num(val('aeCost')), assigned_to:val('aeFm').trim(), qty:parseInt(val('aeQty'))||1, serial:val('aeSerial').trim(), notes:val('aeNotes').trim(), updatedAt:nowMs() };
   try{ await fb.update('assets/'+key, patch); closeModal(); toast('Saved','success'); }catch(e){ toast('Failed: '+e.message,'error'); }
 }
+function openAssignModal(key){
+  const a=state.assets[key]; if(!a){ toast('Tool not found','error'); return; }
+  const opts=['<option value="">Unassigned</option>'].concat(foremanNames().map(n=>`<option value="${esc(n)}" ${a.assigned_to===n?'selected':''}>${esc(n)}</option>`)).join('');
+  modal(modalCard(`<div class="p-lg">
+    <div class="flex justify-between items-center mb-md"><h3 class="font-headline-md text-on-surface">Assign foreman</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
+    <p class="font-body-sm text-on-surface-variant mb-md"><span class="mono" style="color:#ffb690">${esc(a.item_id||'—')}</span> · ${esc(a.description||'')}</p>
+    <label class="lbl">Foreman</label><select id="asgFm" class="ipt">${opts}</select>
+    <div class="flex gap-sm justify-end mt-lg"><button class="btn-ghost" data-action="close-modal">Cancel</button><button class="btn-primary" data-action="assign-save" data-key="${esc(key)}">Save</button></div>
+  </div>`,'max-w-md'));
+}
+async function saveAssign(key){ const a=state.assets[key]; if(!a) return; try{ await fb.update('assets/'+key,{assigned_to:val('asgFm'),updatedAt:nowMs()}); closeModal(); toast('Assigned','success'); renderCurrent(); }catch(e){ toast('Failed','error'); } }
 async function deleteAsset(key){ if(!await requirePin()) return; try{ await fb.remove('assets/'+key); closeModal(); toast('Deleted','success'); }catch(e){ toast('Failed: '+e.message,'error'); } }
 
 async function markLostKeys(keys, by){
@@ -1188,6 +1199,10 @@ function dispatchAction4(a, el){
     case 'audit-mode': auditMode=el.dataset.m; renderCurrent(); return true;
     case 'fm-view': assetForeman=el.dataset.key; assetsViewMode='table'; setView('assets'); return true;
     case 'fm-refresh': loadCrewForemen().then(()=>{ toast('Roster synced','success'); renderCurrent(); }); return true;
+    case 'sum-groupby': summaryGroupBy=el.dataset.g; renderCurrent(); return true;
+    case 'sum-assign': openAssignModal(key); return true;
+    case 'assign-save': saveAssign(key); return true;
+    case 'sum-marklost': (async()=>{ const a=state.assets[key]; if(!a)return; if(!confirm('Mark '+(a.item_id||a.description)+' as LOST?'))return; if(!await requirePin())return; const n=await markLostKeys([key],'Manager'); toast(n+' marked lost','success'); renderCurrent(); })(); return true;
     case 'order-receive': orderSetStatus(key,'Delivered'); return true;
     case 'order-cancel': orderSetStatus(key,'Cancelled'); return true;
     case 'order-toinv': orderToInventory(key); return true;
@@ -1203,24 +1218,46 @@ function dispatchAction4(a, el){
 }
 /* ---------- Foreman Reports ---------- */
 /* ---------- Summary grid (embedded as a view mode in Assets + Audits) ---------- */
-let assetsViewMode='table', auditMode='audit';
+let assetsViewMode='table', auditMode='audit', summaryGroupBy='category';
 function summaryGridHtml(){
   const groups=groupForReconcile(assetsArr());          // same categorization as the foreman report
-  const fmBy={}; assetsArr().forEach(a=>{ if(a.item_id) fmBy[a.item_id]=a.assigned_to||''; });
+  const fmBy={}, keyByItem={};
+  assetsArr().forEach(a=>{ if(a.item_id){ fmBy[a.item_id]=a.assigned_to||''; keyByItem[a.item_id]=a._key; } });
   if(!groups.length) return emptyState('category','No on-site tools to summarize. Import a ToolHound report first.');
-  return `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">`+groups.map(g=>{
+  const toggle=`<div class="flex items-center gap-2 mb-md flex-wrap"><span class="font-label-md text-on-surface-variant">Group by</span>
+    <button data-action="sum-groupby" data-g="category" class="chip ${summaryGroupBy==='category'?'on':''}">Category</button>
+    <button data-action="sum-groupby" data-g="brand" class="chip ${summaryGroupBy==='brand'?'on':''}">Brand</button></div>`;
+  const toolRow=t=>{ const k=keyByItem[t.item_id]; return `<div class="flex items-center justify-between gap-sm px-md py-1.5 hover:bg-surface-container-low">
+     <div class="min-w-0 truncate"><span class="mono font-bold font-body-sm" style="color:#ffb690">${esc(t.item_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((t.description||'').slice(0,28))}</span>${fmBy[t.item_id]?` <span class="font-label-sm text-on-surface-variant">· ${esc(fmBy[t.item_id])}</span>`:''}</div>
+     <div class="flex items-center gap-2 flex-shrink-0"><span class="font-body-sm whitespace-nowrap mono">${t.unit_cost?money2(t.unit_cost):'—'}</span>${k?`<button data-action="sum-assign" data-key="${esc(k)}" class="text-on-surface-variant hover:text-primary-container" title="Assign foreman"><span class="material-symbols-outlined text-[18px]">person_add</span></button><button data-action="sum-marklost" data-key="${esc(k)}" class="text-on-surface-variant hover:text-error" title="Mark lost"><span class="material-symbols-outlined text-[18px]">report</span></button>`:''}</div></div>`; };
+  const cardWrap=inner=>`<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">${inner}</div>`;
+
+  if(summaryGroupBy==='brand'){
+    const brandMap={};
+    groups.forEach(g=>g.lines.forEach(l=>l.tools.forEach(t=>{
+      const b=findBrand(t.description||'')||'Unbranded';
+      brandMap[b]=brandMap[b]||{}; (brandMap[b][g.category]=brandMap[b][g.category]||[]).push(t);
+    })));
+    const brands=Object.keys(brandMap).sort((a,b)=>((_brandRankMap[a]??999)-(_brandRankMap[b]??999))||a.localeCompare(b));
+    return toggle+cardWrap(brands.map(b=>{
+      const cats=brandMap[b]; const all=Object.values(cats).flat();
+      const mo=all.reduce((s,t)=>s+num(t.unit_cost),0);
+      const catNames=Object.keys(cats).sort((x,y)=>CATEGORY_NAMES.indexOf(x)-CATEGORY_NAMES.indexOf(y));
+      return `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-hidden flex flex-col">
+        <div class="p-md border-b border-outline-variant"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(b)}</span><span class="chip on">${all.length}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}/mo · ${catNames.length} type${catNames.length===1?'':'s'}</span></div>
+        <div class="overflow-y-auto" style="max-height:300px">${catNames.map(cn=>{
+          const ts=cats[cn].sort((a,b)=>String(a.description).localeCompare(String(b.description)));
+          return `<div class="px-md py-1 bg-surface-container-low font-label-md text-on-surface-variant flex items-center justify-between sticky top-0"><span>${esc(cn)}</span><span>${ts.length}</span></div><div class="divide-y divide-outline-variant">${ts.map(toolRow).join('')}</div>`;
+        }).join('')}</div></div>`;
+    }).join(''));
+  }
+  return toggle+cardWrap(groups.map(g=>{
     const tools=g.lines.flatMap(l=>l.tools).sort((a,b)=>String(a.description).localeCompare(String(b.description)));
     const mo=tools.reduce((s,t)=>s+num(t.unit_cost),0);
     return `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-hidden flex flex-col">
-      <div class="p-md border-b border-outline-variant">
-        <div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(g.category)}</span><span class="chip on">${g.total}</span></div>
-        <span class="font-body-sm text-on-surface-variant">${money(mo)}/mo</span></div>
-      <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:240px">
-        ${tools.map(t=>`<div class="flex items-center justify-between gap-sm px-md py-1.5">
-           <div class="min-w-0 truncate"><span class="font-bold text-primary font-body-sm">${esc(t.item_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((t.description||'').slice(0,32))}</span>${fmBy[t.item_id]?` <span class="font-label-sm text-on-surface-variant">· ${esc(fmBy[t.item_id])}</span>`:''}</div>
-           <span class="font-body-sm whitespace-nowrap">${t.unit_cost?money2(t.unit_cost):'—'}</span></div>`).join('')}
-      </div></div>`;
-  }).join('')+`</div>`;
+      <div class="p-md border-b border-outline-variant"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(g.category)}</span><span class="chip on">${g.total}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}/mo</span></div>
+      <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:240px">${tools.map(toolRow).join('')}</div></div>`;
+  }).join(''));
 }
 
 function renderReports(root){
