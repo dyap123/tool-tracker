@@ -817,6 +817,9 @@ function emptyState(icon,msg){ return `<div class="flex flex-col items-center ju
 function renderDashboard(root){
   const arr=assetsArr(); const ons=arr.filter(onSite);
   const total=arr.length, onsite=ons.length;
+  const bulk=arr.filter(a=>(parseInt(a.qty)||1)>1).length;
+  const tagged=total-bulk;
+  const bulkUnits=arr.reduce((s,a)=>{const q=parseInt(a.qty)||1;return s+(q>1?q:0);},0);
   const verified=ons.filter(a=>(a.verified||'')==='Yes').length;
   const missing=ons.filter(a=>(a.verified||'')==='Missing').length;
   const unassigned=ons.filter(a=>!(a.assigned_to||'').trim()).length;
@@ -829,7 +832,7 @@ function renderDashboard(root){
   root.innerHTML = pageHeader('Dashboard', (state.config.projectName||'LACC Project')+' · live overview',
     `<button class="btn-ghost" data-action="export-summary-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Cost Report</button>`)
   + `<div class="grid grid-cols-2 lg:grid-cols-4 gap-gutter mb-gutter">
-      ${kpiCard('Total Assets', total, 'inventory_2')}
+      ${kpiCard('Total Assets', total, 'inventory_2', tagged+' tagged tools · '+bulk+' bulk lines')}
       ${kpiCardAccent('On-Site', onsite, 'place', '#fb923c')}
       ${kpiCardAccent('Verified', vpct+'%', 'verified', '#4ade80')}
       ${kpiCard('Rental / mo', money(monthlyCharge()), 'payments')}
@@ -838,6 +841,7 @@ function renderDashboard(root){
       ${kpiCard('Unassigned', unassigned, 'person_off')}
       ${kpiCard('Pending Orders', pending, 'local_shipping')}
     </div>`
+  + `<div class="flex items-start gap-2 text-on-surface-variant font-label-sm mb-gutter -mt-1 max-w-3xl"><span class="material-symbols-outlined text-[16px] flex-shrink-0">info</span><span><b>${total}</b> total = <b>${tagged}</b> individually-tagged tools + <b>${bulk}</b> bulk part-lines (consumables billed by the box${bulkUnits?', ~'+bulkUnits.toLocaleString()+' pieces':''}).</span></div>`
   + `<div class="font-label-md text-on-surface-variant mb-sm">QUICK ACTIONS</div>
      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-sm mb-gutter">
        ${qa('upload_file','Import','open-import',null)}
@@ -860,7 +864,7 @@ function renderDashboard(root){
 }
 function kpiCardAccent(label,val,icon,color){ return `<div class="bg-surface-container-lowest border border-outline-variant p-md rounded flex flex-col justify-between" style="border-left:3px solid ${color}"><div class="flex justify-between items-start mb-sm"><span class="font-label-md text-on-surface-variant">${esc(label)}</span><span class="material-symbols-outlined" style="color:${color}">${icon}</span></div><div class="font-headline-xl text-headline-xl" style="color:${color}">${esc(val)}</div></div>`; }
 function qa(icon,label,action,view){ const attr=view?`data-view="${view}"`:`data-action="${action}"`; return `<button ${attr} class="flex flex-col items-center justify-center gap-1 p-md bg-surface-container-lowest border border-outline-variant rounded-xl hover:border-primary-container hover:bg-surface-container transition-all min-h-[80px]"><span class="material-symbols-outlined text-primary-container">${icon}</span><span class="font-label-md text-on-surface">${label}</span></button>`; }
-function kpiCard(label,val,icon){ return `<div class="bg-surface-container-lowest border border-outline-variant p-md rounded flex flex-col justify-between"><div class="flex justify-between items-start mb-sm"><span class="font-label-md text-on-surface-variant">${esc(label)}</span><span class="material-symbols-outlined text-outline">${icon}</span></div><div class="font-headline-xl text-headline-xl text-primary">${esc(val)}</div></div>`; }
+function kpiCard(label,val,icon,sub){ return `<div class="bg-surface-container-lowest border border-outline-variant p-md rounded flex flex-col justify-between"><div class="flex justify-between items-start mb-sm"><span class="font-label-md text-on-surface-variant">${esc(label)}</span><span class="material-symbols-outlined text-outline">${icon}</span></div><div class="font-headline-xl text-headline-xl text-primary">${esc(val)}</div>${sub?`<div class="font-label-sm text-on-surface-variant mt-1">${esc(sub)}</div>`:''}</div>`; }
 function kpiCardErr(label,val,icon){ return `<div class="bg-error-container border border-error p-md rounded flex flex-col justify-between cursor-pointer" data-action="goto-lost"><div class="flex justify-between items-start mb-sm"><span class="font-label-md text-on-error-container">${esc(label)}</span><span class="material-symbols-outlined text-error">${icon}</span></div><div class="font-headline-xl text-headline-xl text-error">${esc(val)}</div></div>`; }
 
 function val(id){ const e=document.getElementById(id); return e?e.value:''; }
