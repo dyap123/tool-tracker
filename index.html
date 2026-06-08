@@ -1183,33 +1183,61 @@ async function processOrderForm(file, st){
 }
 // Heuristic: pull "qty + description" (either order) from a free-form order form.
 function parseOrderLines(lines){
+  lines=(lines||[]).map(l=>(l||'').trim());
+  // ---- ToolHound transaction receipt: "<item_id> <part_no> [desc] Issue <qty> EA" ----
+  const dataRe=/^(\S+)\s+(\S+)\s+(?:(.+?)\s+)?(?:Issue|Return|Transfer|Exchange)\s+(\d+)\s+(?:EA|PC|PCS|UN|BX|CS|LF|GAL|SET|PR|DZ|ROLL)\b/i;
+  const skipDesc=/^(Transaction|Item ID|Part No|Description|Signature|Reference|Notes|Jobsite|Requisition|Date\b|Entity|Page|Address|OAKLAND|Oakland|Los Angeles|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i;
+  const looksDesc=x=> x && !dataRe.test(x) && /[A-Za-z]{3}/.test(x) && !skipDesc.test(x)
+        && !/\(\d{3}\)/.test(x) && !/\b[A-Za-z]{2}\.?\s+\d{5}\b/.test(x)            // phones / city-state-zip
+        && !/^\d+\s+(S\.|N\.|E\.|W\.|South|North|East|West|[A-Z][a-z]+\s+(St|Ave|Dr|Blvd|Rd|Capwell))/i.test(x);  // street address
+  const isTH = lines.some(l=>dataRe.test(l)) || lines.some(l=>/Item ID\s+Part No\s+Description|Transaction Receipt/i.test(l));
+  if(isTH){
+    const items=[];
+    for(let i=0;i<lines.length;i++){
+      const m=dataRe.exec(lines[i]); if(!m) continue;
+      const itemId=m[1], partNo=m[2], qty=parseInt(m[4])||1;
+      let desc=(m[3]||'').trim();
+      if(!desc){                                   // description wraps onto the line above (+ below)
+        const prev=lines[i-1], next=lines[i+1]; const parts=[];
+        if(looksDesc(prev)) parts.push(prev);
+        if(looksDesc(next)) parts.push(next);
+        else if(next && next.length<=14 && /\d/.test(next) && !dataRe.test(next) && !skipDesc.test(next) && !/\(\d{3}\)/.test(next)) parts.push(next);  // short spec suffix (14 FT, 20/60V)
+        desc=parts.join(' ');
+      }
+      desc=desc.replace(/\s{2,}/g,' ').trim() || partNo;
+      items.push({item_id:itemId, part_no:partNo, description:desc, qty});
+    }
+    if(items.length) return items;
+  }
+  // ---- Generic fallback for other order forms (guard against addresses/phones) ----
   const items=[]; const seen=new Set();
-  const skip=/^(qty|quantity|description|item|part\b|unit|amount|price|total|subtotal|tax|page|date|p\.?o\.?\b|purchase order|ship|bill|vendor|supplier|order #|attention|phone|fax|email)\b/i;
-  for(const raw of (lines||[])){
-    const s=raw.trim(); if(s.length<4) continue;
-    if(skip.test(s)) continue;
+  const skip=/^(qty|quantity|description|item|part\b|unit|amount|price|total|subtotal|tax|page|date|p\.?o\.?\b|purchase order|ship|bill|vendor|supplier|order|attention|phone|fax|email|suite|ste\b|floor|fl\b|entity|requisition|reference|notes|signature)\b/i;
+  const addr=/(\b(street|st|ave|avenue|blvd|road|rd|drive|dr|lane|ln|suite|ste|floor|way|court|ct|capwell|figueroa)\b|,\s*[A-Za-z]{2}\.?\s+\d{5}|\b\d{5}(-\d{4})?\b|\(\d{3}\)\s*\d{3}[-.\s]?\d{4})/i;
+  for(const s of lines){
+    if(s.length<4 || skip.test(s) || addr.test(s)) continue;
     let qty=0, desc='';
-    let m=/^(\d{1,4})\s*(?:x|ea|pcs?|pc|units?|cs|bx)?\.?\s+([A-Za-z#].{3,})$/.exec(s);            // leading qty
+    let m=/^(\d{1,4})\s*(?:x|ea|pcs?|pc|units?|cs|bx)?\.?\s+([A-Za-z#].{3,})$/.exec(s);
     if(m){ qty=parseInt(m[1]); desc=m[2]; }
-    else { m=/^([A-Za-z#].{3,}?)[\s.]+(\d{1,4})\s*(?:ea|pcs?|pc|units?|cs|bx)?\.?$/.exec(s); if(m){ desc=m[1]; qty=parseInt(m[2]); } }  // trailing qty
+    else { m=/^([A-Za-z#].{3,}?)[\s.]+(\d{1,4})\s*(?:ea|pcs?|pc|units?|cs|bx)?\.?$/.exec(s); if(m){ desc=m[1]; qty=parseInt(m[2]); } }
     if(!desc || !qty || qty>9999) continue;
     desc=desc.replace(/\s{2,}/g,' ').replace(/[._]{2,}/g,' ').replace(/\s*\$\s*[\d,.]+$/,'').trim();
-    if(!/[A-Za-z]{3}/.test(desc)) continue;                       // must contain real words
+    if(!/[A-Za-z]{3}/.test(desc)) continue;
     const k=desc.toLowerCase()+'|'+qty; if(seen.has(k)) continue; seen.add(k);
     items.push({qty, description:desc});
   }
   return items;
 }
 function showOrderReview(fileName, items){
-  window._orderImport=items.map(it=>({qty:it.qty, description:it.description, _include:true}));
+  window._orderImport=items.map(it=>({qty:it.qty, description:it.description, item_id:it.item_id||'', part_no:it.part_no||'', _include:true}));
   const rows=window._orderImport.map((it,i)=>`<tr>
     <td class="text-center"><input type="checkbox" ${it._include?'checked':''} onchange="window._orderImport[${i}]._include=this.checked"></td>
+    <td class="mono font-body-sm" style="color:#ffb690;white-space:nowrap">${esc(it.item_id||'—')}</td>
     <td><input class="ipt" value="${esc(it.description)}" onchange="window._orderImport[${i}].description=this.value"></td>
-    <td style="width:96px"><input type="number" min="1" class="ipt text-center" value="${it.qty}" onchange="window._orderImport[${i}].qty=parseInt(this.value)||1"></td></tr>`).join('');
+    <td style="width:84px"><input type="number" min="1" class="ipt text-center" value="${it.qty}" onchange="window._orderImport[${i}].qty=parseInt(this.value)||1"></td></tr>`).join('');
   modal(modalCard(`<div class="p-lg">
     <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-on-surface">Review order form</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
     <p class="font-body-sm text-on-surface-variant mb-md">${window._orderImport.length} line item(s) detected from <b>${esc(fileName)}</b>. Best-effort — edit text, fix quantities, untick noise, then create.</p>
-    <div class="overflow-y-auto border border-outline-variant rounded" style="max-height:50vh"><table class="ttable"><thead><tr><th></th><th>Description</th><th class="text-center">Qty</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="overflow-y-auto border border-outline-variant rounded" style="max-height:50vh"><table class="ttable"><thead><tr><th></th><th>Item ID</th><th>Description</th><th class="text-center">Qty</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="flex gap-sm justify-end mt-lg"><button class="btn-ghost" data-action="close-modal">Cancel</button><button class="btn-primary" data-action="orders-commit">Create Orders</button></div>
   </div>`,'max-w-2xl'));
 }
@@ -1218,8 +1246,8 @@ async function commitOrders(){
   if(!items.length){ toast('Nothing ticked to create','info'); return; }
   let n=0;
   for(const it of items){
-    const o={ description:it.description.trim(), qty:parseInt(it.qty)||1, date_needed:'', po:'', employee:'', primary_id:'', unit:'',
-      notes:'Imported from order form', status:'Pending', order_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs() };
+    const o={ description:it.description.trim(), qty:parseInt(it.qty)||1, date_needed:'', po:'', employee:'', primary_id:it.item_id||'', unit:'',
+      notes:'Imported from order form'+(it.part_no?' · part '+it.part_no:''), status:'Pending', order_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs() };
     try{ await fb.push('orders', o); n++; }catch(e){}
   }
   window._orderImport=null; closeModal(); toast(n+' order(s) created','success');
