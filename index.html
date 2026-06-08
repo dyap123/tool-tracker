@@ -65,9 +65,10 @@
   ::-webkit-scrollbar-track{background:#040e1f}
   ::-webkit-scrollbar-thumb{background:#3a4a5f;border-radius:6px}
   ::-webkit-scrollbar-thumb:hover{background:#4a5d76}
-  .industrial-checkbox{ appearance:none;-webkit-appearance:none;width:32px;height:32px;border:2px solid #584237;border-radius:6px;cursor:pointer;flex-shrink:0;position:relative;background:#0c1626;transition:all .15s; }
-  .industrial-checkbox:checked{ background:#f97316;border-color:#f97316; }
-  .industrial-checkbox:checked::after{ content:'';position:absolute;left:10px;top:5px;width:8px;height:14px;border:solid #081425;border-width:0 3px 3px 0;transform:rotate(45deg); }
+  .industrial-checkbox{ appearance:none !important;-webkit-appearance:none !important;width:26px !important;height:26px !important;min-width:26px !important;border:2px solid #3a4a5f !important;border-radius:8px !important;cursor:pointer;flex-shrink:0;position:relative;background:#0c1626 !important;transition:all .15s;padding:0 !important; }
+  .industrial-checkbox:hover{ border-color:#f97316 !important; }
+  .industrial-checkbox:checked{ background:#f97316 !important;border-color:#f97316 !important; }
+  .industrial-checkbox:checked::after{ content:'';position:absolute;left:9px;top:4px;width:7px;height:13px;border:solid #081425;border-width:0 3px 3px 0;transform:rotate(45deg); }
   .bg-pattern,.bg-grid{ background-image:linear-gradient(#16243a 1px,transparent 1px),linear-gradient(90deg,#16243a 1px,transparent 1px);background-size:28px 28px; }
   /* Toasts */
   #toastWrap{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center}
@@ -1243,18 +1244,16 @@ function renderAudits(root){
 }
 function auditCard(a){
   const v=(a.verified||''); const isV=v==='Yes', isM=v==='Missing';
-  return `<div class="bg-surface-container-lowest border ${isM?'border-error':'border-outline-variant'} rounded-lg flex items-stretch overflow-hidden ${isM?'':''}">
-    <div class="p-sm border-r border-outline-variant flex items-center justify-center w-16 ${isM?'bg-error-container':'bg-surface-container-low'}">
-      <input type="checkbox" class="industrial-checkbox" ${isV?'checked':''} aria-label="Verify ${esc(a.description)}" onchange="dispatchAction(this.checked?'audit-verify':'audit-unverify', {dataset:{key:'${esc(a._key)}'}})">
+  return `<div class="bg-surface-container-lowest border ${isM?'border-error':'border-outline-variant'} rounded-xl flex items-center gap-md p-md transition-colors hover:bg-surface-container-low shadow-sm" style="border-left:3px solid ${isV?'#22c55e':(isM?'#b91c1c':'transparent')}">
+    <input type="checkbox" class="industrial-checkbox" ${isV?'checked':''} aria-label="Verify ${esc(a.description)}" onchange="dispatchAction(this.checked?'audit-verify':'audit-unverify', {dataset:{key:'${esc(a._key)}'}})">
+    <div class="flex-grow min-w-0">
+      <div class="font-label-sm uppercase tracking-widest mono" style="color:#ffb690">${esc(a.item_id||a.part_no||'—')}</div>
+      <div class="font-headline-md text-on-surface ${isV?'line-through opacity-60':''}">${esc(a.description||'—')}</div>
+      <div class="font-body-sm text-on-surface-variant">${esc(a.category||'')}${a.assigned_to?' · '+esc(a.assigned_to):''}${isV&&a.verifiedAt?' · ✓ verified':''}</div>
     </div>
-    <div class="p-md flex-grow flex flex-col sm:flex-row sm:items-center justify-between gap-sm">
-      <div><div class="font-label-sm text-on-surface-variant uppercase tracking-widest">${esc(a.item_id||a.part_no||'—')}</div>
-        <div class="font-headline-md text-on-surface ${isV?'line-through opacity-70':''}">${esc(a.description||'—')}</div>
-        <div class="font-body-sm text-on-surface-variant">${esc(a.category||'')}${a.assigned_to?' · '+esc(a.assigned_to):''}${isV&&a.verifiedAt?' · verified':''}</div></div>
-      <div class="flex gap-sm">
-        ${isM?`<button class="btn-ghost" data-action="audit-found" data-key="${esc(a._key)}">Found It</button>`
-            :`<button class="btn-ghost" style="color:#ba1a1a;border-color:#ba1a1a" data-action="audit-missing" data-key="${esc(a._key)}"><span class="material-symbols-outlined text-[18px]">warning</span>Mark Missing</button>`}
-      </div>
+    <div class="flex gap-sm flex-shrink-0">
+      ${isM?`<button class="btn-ghost" data-action="audit-found" data-key="${esc(a._key)}">Found It</button>`
+          :`<button class="btn-ghost" style="color:#ffb4ab;border-color:#b91c1c" data-action="audit-missing" data-key="${esc(a._key)}"><span class="material-symbols-outlined text-[18px]">warning</span>Mark Missing</button>`}
     </div></div>`;
 }
 async function setVerified(key,v){ const patch={verified:v, verifiedAt:v?nowMs():null}; try{ await fb.update('assets/'+key,patch);}catch(e){ toast('Failed','error'); } }
