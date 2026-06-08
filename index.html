@@ -1108,9 +1108,31 @@ async function markLostKeys(keys, by){
 }
 
 /* ---------- Orders + receiving ---------- */
-let orderFilter='', orderQuery='';
+let orderFilter='', orderQuery='', orderView='list';
 function orderSearchInput(v){ orderQuery=(v||'').toLowerCase(); applyOrderSearch(); }
-function applyOrderSearch(){ const q=orderQuery, list=document.getElementById('orderList'); if(!list) return; list.querySelectorAll('[data-search]').forEach(r=>{ r.style.display=(!q||r.dataset.search.indexOf(q)>=0)?'':'none'; }); }
+function applyOrderSearch(){ const q=orderQuery, list=document.getElementById('orderList'); if(!list) return;
+  list.querySelectorAll('[data-search]').forEach(r=>{ r.style.display=(!q||r.dataset.search.indexOf(q)>=0)?'':'none'; });
+  list.querySelectorAll('.sum-card').forEach(c=>{ c.style.display=[...c.querySelectorAll('[data-search]')].some(r=>r.style.display!=='none')?'':'none'; });
+}
+function ordersGroupHtml(arr, by){
+  const keyOf=o=> by==='brand' ? (findBrand(o.description||'')||'Unbranded') : (_categoryFor((o.description||'').toUpperCase(),'')||'Other');
+  const groups={}; arr.forEach(o=>{ const k=keyOf(o); (groups[k]=groups[k]||[]).push(o); });
+  const ci=x=>{ const i=CATEGORY_NAMES.indexOf(x); return i<0?999:i; };
+  const names=Object.keys(groups).sort((a,b)=> by==='brand' ? (((_brandRankMap[a]??999)-(_brandRankMap[b]??999))||a.localeCompare(b)) : (ci(a)-ci(b)||a.localeCompare(b)));
+  if(!names.length) return emptyState('local_shipping','No orders to group.');
+  return `<div id="orderList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">`+names.map(n=>{
+    const os=groups[n];
+    return `<div class="sum-card bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
+      <div class="p-md border-b border-outline-variant bg-surface-container-low flex items-center justify-between"><span class="font-headline-md text-on-surface">${esc(n)}</span><span class="chip on">${os.length}</span></div>
+      <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:300px">${os.map(o=>{
+        const hay=((o.description||'')+' '+(o.primary_id||'')+' '+(o.part_no||'')+' '+(o.status||'')).toLowerCase();
+        const sc={'Pending':'#fb923c','Delivered':'#4ade80','Cancelled':'#9fb0cb'}[o.status||'Pending']||'#9fb0cb';
+        return `<div data-search="${esc(hay)}" class="flex items-center justify-between gap-sm px-md py-1.5 hover:bg-surface-container-low">
+          <div class="min-w-0 truncate"><span class="mono font-bold font-body-sm" style="color:#ffb690">${esc(o.primary_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((o.description||'').slice(0,28))}</span></div>
+          <div class="flex items-center gap-2 flex-shrink-0"><span class="font-label-sm" style="color:${sc}">${esc(o.status||'')}</span><span class="font-body-sm mono">×${esc(o.qty||1)}</span></div></div>`;
+      }).join('')}</div></div>`;
+  }).join('')+`</div>`;
+}
 function renderOrders(root){
   const arr=ordersArr().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const filtered=arr.filter(o=>!orderFilter||(o.status||'')===orderFilter);
@@ -1125,7 +1147,10 @@ function renderOrders(root){
        <div id="orderDropStatus" class="mt-xs font-body-sm text-on-surface-variant"></div>
      </label>`
   + `<div class="flex gap-2 flex-wrap mb-md items-center"><div class="flex gap-1 flex-wrap">${chips}</div><div class="relative ml-auto"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input id="orderSearch" value="${esc(orderQuery)}" oninput="orderSearchInput(this.value)" placeholder="Search orders…" class="ipt pl-8" style="width:220px" autocomplete="off"></div></div>`
-  + (filtered.length ? `<div id="orderList" class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">`+filtered.map(o=>orderCard(o)).join('')+`</div>` : emptyState('local_shipping','No orders yet. Create one with New Order, or drop an order form above.'));
+  + `<div class="flex gap-1 mb-md"><button data-action="order-view" data-v="list" class="chip ${orderView==='list'?'on':''}">List</button><button data-action="order-view" data-v="category" class="chip ${orderView==='category'?'on':''}">By category</button><button data-action="order-view" data-v="brand" class="chip ${orderView==='brand'?'on':''}">By brand</button></div>`
+  + (filtered.length
+      ? (orderView==='list' ? `<div id="orderList" class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">`+filtered.map(o=>orderCard(o)).join('')+`</div>` : ordersGroupHtml(filtered, orderView))
+      : emptyState('local_shipping','No orders yet. Create one with New Order, or drop an order form above.'));
   const od=document.getElementById('orderDrop');
   if(od){ wireDropzone(od, document.getElementById('orderDropStatus'), processOrderForm);
     document.getElementById('orderDropFile').addEventListener('change', e=>processOrderForm(e.target.files, document.getElementById('orderDropStatus'))); }
@@ -1143,7 +1168,7 @@ function orderCard(o){
       </div>
       <div class="grid grid-cols-3 gap-sm font-body-sm mb-md">
         <div><div class="lbl">Qty</div>${esc(o.qty||'—')}</div>
-        <div><div class="lbl">Needed</div>${esc(o.date_needed||'—')}</div>
+        <div><div class="lbl">Need By</div>${esc(o.date_needed||'—')}</div>
         <div><div class="lbl">Ordered</div>${esc(o.order_date||'—')}</div>
       </div>
       <div class="flex gap-sm flex-wrap">
@@ -1357,6 +1382,7 @@ function dispatchAction4(a, el){
     case 'asset-onsite': (async()=>{ const a=state.assets[key]; if(!a)return; await fb.update('assets/'+key,{status:'On Site',verified:'Yes',verifiedAt:nowMs(),updatedAt:nowMs()}); closeModal(); toast('Marked on-site','success'); renderCurrent(); })(); return true;
     case 'export-summary-xlsx': exportSummaryXlsx(); return true;
     case 'goto-summary': assetsViewMode='summary'; setView('assets'); return true;
+    case 'order-view': orderView=el.dataset.v; renderCurrent(); return true;
     case 'order-receive': orderReceive(key); return true;
     case 'order-cancel': orderSetStatus(key,'Cancelled'); return true;
     case 'order-toinv': orderToInventory(key); return true;
