@@ -533,7 +533,7 @@ function openImport(){
        <span class="font-headline-md text-on-surface mb-xs">Drag &amp; drop your document here</span>
        <span class="font-body-sm text-on-surface-variant mb-md">Supports PDF, CSV, and Excel.</span>
        <span class="btn-primary" style="pointer-events:none">Browse Files</span>
-       <input id="impFile" type="file" accept=".csv,.xlsx,.xls,.pdf" class="hidden">
+       <input id="impFile" type="file" accept=".csv,.xlsx,.xls,.pdf" multiple class="hidden">
      </label>
      <div id="impStatus" class="mt-md font-body-sm text-on-surface-variant text-center"></div>
      <div class="flex items-center justify-center gap-1 mt-md text-on-surface-variant font-label-md"><span class="material-symbols-outlined text-[14px]">lock</span> SECURE LOCAL PARSING — YOUR FILE NEVER LEAVES THIS DEVICE</div>
@@ -542,21 +542,25 @@ function openImport(){
   wireDropzone(document.getElementById('impDrop'), document.getElementById('impStatus'));
 }
 
-async function processImportFile(file, st){
-  if(!file) return;
+async function processImportFile(input, st){
+  const files = input && input.length!==undefined ? [...input] : (input ? [input] : []);
+  if(!files.length) return;
   const setMsg=m=>{ if(st) st.innerHTML=m; };
-  setMsg('Parsing '+esc(file.name)+'…');
-  try{
-    const ext=file.name.split('.').pop().toLowerCase();
-    let parsed;
-    if(ext==='pdf') parsed=await parsePdfReport(file, m=>setMsg(esc(m)));
-    else parsed=await parseSpreadsheetReport(file);
-    if(!parsed.items.length){ setMsg('<span class="text-error">No line items parsed. Check the file format.</span>'); return; }
-    const diff=diffImport(parsed.items);
-    showImportReview(file.name, parsed, diff);
-  }catch(err){ console.error(err); setMsg('<span class="text-error">Parse failed: '+esc(err.message)+'</span>'); }
+  let items=[], warnings=[], type='';
+  for(let i=0;i<files.length;i++){
+    const file=files[i]; const tag=files.length>1?' ('+(i+1)+'/'+files.length+')':'';
+    setMsg('Parsing '+esc(file.name)+tag+'…');
+    try{
+      const ext=file.name.split('.').pop().toLowerCase();
+      const parsed = ext==='pdf' ? await parsePdfReport(file, m=>setMsg(esc(m)+tag)) : await parseSpreadsheetReport(file);
+      items=items.concat(parsed.items||[]); (parsed.warnings||[]).forEach(w=>{ if(!warnings.includes(w)) warnings.push(w); }); type=type||parsed.type;
+    }catch(err){ console.error(err); warnings.push('Could not parse '+file.name); }
+  }
+  if(!items.length){ setMsg('<span class="text-error">No line items parsed. Check the file format.</span>'); return; }
+  const diff=diffImport(items); setMsg('');
+  showImportReview(files.length>1?files.length+' files':files[0].name, {type:type||'import', items, warnings}, diff);
 }
-function handleImportFile(e){ processImportFile(e.target.files[0], document.getElementById('impStatus')); }
+function handleImportFile(e){ processImportFile(e.target.files, document.getElementById('impStatus')); }
 
 // Make any element a drag-and-drop target that feeds the import pipeline.
 function wireDropzone(el, st, handler){
@@ -567,7 +571,7 @@ function wireDropzone(el, st, handler){
   ['dragover','dragenter'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();on();}));
   ['dragleave','dragend'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();off();}));
   el.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();off();
-    const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) handler(f, st);});
+    const fs=e.dataTransfer&&e.dataTransfer.files; if(fs&&fs.length) handler(fs, st);});
 }
 
 function buildHeaderMap(headerRow){ const m={}; (headerRow||[]).forEach((c,i)=>{ const k=String(c==null?'':c).toLowerCase().trim(); if(k && !(k in m)) m[k]=i; }); return m; }
@@ -1104,7 +1108,9 @@ async function markLostKeys(keys, by){
 }
 
 /* ---------- Orders + receiving ---------- */
-let orderFilter='';
+let orderFilter='', orderQuery='';
+function orderSearchInput(v){ orderQuery=(v||'').toLowerCase(); applyOrderSearch(); }
+function applyOrderSearch(){ const q=orderQuery, list=document.getElementById('orderList'); if(!list) return; list.querySelectorAll('[data-search]').forEach(r=>{ r.style.display=(!q||r.dataset.search.indexOf(q)>=0)?'':'none'; }); }
 function renderOrders(root){
   const arr=ordersArr().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const filtered=arr.filter(o=>!orderFilter||(o.status||'')===orderFilter);
@@ -1113,20 +1119,22 @@ function renderOrders(root){
     `<button class="btn-ghost" data-action="order-upload"><span class="material-symbols-outlined text-[18px]">upload_file</span>Upload Order Form</button>
      <button class="btn-primary" data-action="order-new"><span class="material-symbols-outlined text-[18px]">add</span>New Order</button>`)
   + `<label id="orderDrop" class="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-lg p-md mb-md cursor-pointer hover:bg-surface-container transition-all">
-       <div class="flex items-center gap-sm"><span class="material-symbols-outlined text-secondary text-[28px]">document_scanner</span><span class="font-label-md text-primary">Drop an order form here to extract what's been ordered</span></div>
-       <span class="font-body-sm text-on-surface-variant">PDF (scanned OK) or CSV/Excel — pulls qty + item, you review before creating.</span>
-       <input id="orderDropFile" type="file" accept=".csv,.xlsx,.xls,.pdf" class="hidden">
+       <div class="flex items-center gap-sm"><span class="material-symbols-outlined text-secondary text-[28px]">document_scanner</span><span class="font-label-md text-primary">Drop order form(s) here to extract what's been ordered</span></div>
+       <span class="font-body-sm text-on-surface-variant">One or more PDFs (scanned OK) or CSV/Excel — pulls item, part no &amp; qty; you review before creating.</span>
+       <input id="orderDropFile" type="file" accept=".csv,.xlsx,.xls,.pdf" multiple class="hidden">
        <div id="orderDropStatus" class="mt-xs font-body-sm text-on-surface-variant"></div>
      </label>`
-  + `<div class="flex gap-1 flex-wrap mb-md">${chips}</div>`
-  + (filtered.length ? `<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">`+filtered.map(o=>orderCard(o)).join('')+`</div>` : emptyState('local_shipping','No orders yet. Create one with New Order, or drop an order form above.'));
+  + `<div class="flex gap-2 flex-wrap mb-md items-center"><div class="flex gap-1 flex-wrap">${chips}</div><div class="relative ml-auto"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input id="orderSearch" value="${esc(orderQuery)}" oninput="orderSearchInput(this.value)" placeholder="Search orders…" class="ipt pl-8" style="width:220px" autocomplete="off"></div></div>`
+  + (filtered.length ? `<div id="orderList" class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">`+filtered.map(o=>orderCard(o)).join('')+`</div>` : emptyState('local_shipping','No orders yet. Create one with New Order, or drop an order form above.'));
   const od=document.getElementById('orderDrop');
   if(od){ wireDropzone(od, document.getElementById('orderDropStatus'), processOrderForm);
-    document.getElementById('orderDropFile').addEventListener('change', e=>processOrderForm(e.target.files[0], document.getElementById('orderDropStatus'))); }
+    document.getElementById('orderDropFile').addEventListener('change', e=>processOrderForm(e.target.files, document.getElementById('orderDropStatus'))); }
+  applyOrderSearch();
 }
 function orderCard(o){
   const st=(o.status||'Pending'); const c={'Pending':'#f97316','Delivered':'#22c55e','Cancelled':'#6d7589'}[st]||'#6d7589';
-  return `<div class="bg-surface-container-lowest border border-outline-variant rounded relative overflow-hidden">
+  const hay=((o.description||'')+' '+(o.primary_id||'')+' '+(o.part_no||'')+' '+(o.po||'')+' '+(o.employee||'')+' '+st).toLowerCase();
+  return `<div data-search="${esc(hay)}" class="bg-surface-container-lowest border border-outline-variant rounded relative overflow-hidden">
     <div class="h-1 w-full" style="background:${c}"></div>
     <div class="p-md">
       <div class="flex justify-between items-start mb-sm">
@@ -1166,20 +1174,25 @@ async function saveOrder(){
 }
 
 // ---- Upload an order form -> extract ordered line items (qty + description) ----
-async function processOrderForm(file, st){
-  if(!file) return;
+async function processOrderForm(input, st){
+  const files = input && input.length!==undefined ? [...input] : (input ? [input] : []);
+  if(!files.length) return;
   const setMsg=m=>{ if(st) st.innerHTML=m; };
-  setMsg('Reading '+esc(file.name)+'…');
-  try{
-    const ext=file.name.split('.').pop().toLowerCase();
-    let lines;
-    if(ext==='pdf'){ const r=await extractPdfLines(file, m=>setMsg(esc(m))); lines=r.lines; }
-    else { const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]];
-      lines=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''}).map(r=>r.map(c=>String(c==null?'':c)).join(' ').trim()).filter(Boolean); }
-    const items=parseOrderLines(lines);
-    if(!items.length){ setMsg('<span class="text-error">No order line items found. You can still use New Order to add them by hand.</span>'); return; }
-    setMsg(''); showOrderReview(file.name, items);
-  }catch(err){ console.error(err); setMsg('<span class="text-error">Failed: '+esc(err.message)+'</span>'); }
+  let all=[];
+  for(let i=0;i<files.length;i++){
+    const file=files[i]; const tag=files.length>1?' ('+(i+1)+'/'+files.length+')':'';
+    setMsg('Reading '+esc(file.name)+tag+'…');
+    try{
+      const ext=file.name.split('.').pop().toLowerCase();
+      let lines;
+      if(ext==='pdf'){ const r=await extractPdfLines(file, m=>setMsg(esc(m)+tag)); lines=r.lines; }
+      else { const buf=await file.arrayBuffer(); const wb=XLSX.read(buf,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]];
+        lines=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''}).map(r=>r.map(c=>String(c==null?'':c)).join(' ').trim()).filter(Boolean); }
+      all=all.concat(parseOrderLines(lines));
+    }catch(err){ console.error(err); }
+  }
+  if(!all.length){ setMsg('<span class="text-error">No order line items found. You can still use New Order to add them by hand.</span>'); return; }
+  setMsg(''); showOrderReview(files.length>1?files.length+' files':files[0].name, all);
 }
 // Heuristic: pull "qty + description" (either order) from a free-form order form.
 function parseOrderLines(lines){
@@ -1256,9 +1269,14 @@ async function commitOrders(){
 async function orderSetStatus(key,status){ try{ await fb.update('orders/'+key,{status,updatedAt:nowMs()}); toast('Order '+status,'success'); }catch(e){ toast('Failed','error'); } }
 async function orderToInventory(key){
   const o=state.orders[key]; if(!o) return;
-  const a={...blankAsset(), item_id:o.primary_id||'', description:o.description||'', unit_cost:0, qty:parseInt(o.qty)||1, po:o.po||'', status:'On Site', source:'manual', issued_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs()};
-  const k=assetKey(a.item_id,'',a.description);
+  const a={...blankAsset(), item_id:o.primary_id||'', part_no:o.part_no||'', description:o.description||'', unit_cost:0, qty:parseInt(o.qty)||1, po:o.po||'', status:'On Site', source:'order', issued_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs()};
+  const k=assetKey(a.item_id,a.part_no,a.description);
   try{ await fb.update('assets',{[k]:a}); toast('Added to inventory','success'); }catch(e){ toast('Failed','error'); }
+}
+async function orderReceive(key){
+  const o=state.orders[key]; if(!o) return;
+  try{ await fb.update('orders/'+key,{status:'Delivered',updatedAt:nowMs()}); }catch(e){}
+  await orderToInventory(key);   // arrival = it's on site now
 }
 
 /* ---------- On-site audit / verify ---------- */
@@ -1339,7 +1357,7 @@ function dispatchAction4(a, el){
     case 'asset-onsite': (async()=>{ const a=state.assets[key]; if(!a)return; await fb.update('assets/'+key,{status:'On Site',verified:'Yes',verifiedAt:nowMs(),updatedAt:nowMs()}); closeModal(); toast('Marked on-site','success'); renderCurrent(); })(); return true;
     case 'export-summary-xlsx': exportSummaryXlsx(); return true;
     case 'goto-summary': assetsViewMode='summary'; setView('assets'); return true;
-    case 'order-receive': orderSetStatus(key,'Delivered'); return true;
+    case 'order-receive': orderReceive(key); return true;
     case 'order-cancel': orderSetStatus(key,'Cancelled'); return true;
     case 'order-toinv': orderToInventory(key); return true;
     case 'audit-filter': auditFilter=el.dataset.st; renderCurrent(); return true;
@@ -1410,7 +1428,7 @@ function renderReports(root){
   + `<label id="reportsDrop" class="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-lg p-lg mb-gutter cursor-pointer hover:bg-surface-container transition-all">
        <div class="flex items-center gap-sm mb-xs"><span class="material-symbols-outlined text-secondary text-[32px]">document_scanner</span><span class="font-headline-md text-on-surface">Drop a ToolHound invoice or asset export</span></div>
        <span class="font-body-sm text-on-surface-variant text-center">Drag &amp; drop or click — CSV/Excel or PDF (scanned OK). Invoices are read by their <b>individual tagged line items</b>, then diffed against your assets to review.</span>
-       <input id="reportsDropFile" type="file" accept=".csv,.xlsx,.xls,.pdf" class="hidden">
+       <input id="reportsDropFile" type="file" accept=".csv,.xlsx,.xls,.pdf" multiple class="hidden">
        <div id="reportsDropStatus" class="mt-sm font-body-sm text-on-surface-variant"></div>
      </label>`
   + `<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
@@ -1429,7 +1447,7 @@ function renderReports(root){
   const rdz=document.getElementById('reportsDrop');
   if(rdz){
     wireDropzone(rdz, document.getElementById('reportsDropStatus'));
-    document.getElementById('reportsDropFile').addEventListener('change', e=>processImportFile(e.target.files[0], document.getElementById('reportsDropStatus')));
+    document.getElementById('reportsDropFile').addEventListener('change', e=>processImportFile(e.target.files, document.getElementById('reportsDropStatus')));
   }
 }
 
