@@ -91,8 +91,8 @@
   .btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border:1px solid #3a4a5f;color:#d8e3fb;border-radius:8px;font-size:12px;font-weight:700;background:#152031;min-height:42px}
   .btn-ghost:hover{background:#1f2a3c;border-color:#a78b7d}
   .btn-danger{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;background:#b91c1c;color:#fff;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;min-height:42px}
-  .ipt{width:100%;border:1px solid #2a3548;border-radius:8px;padding:10px 12px;font-size:14px;background:#0c1626;color:#d8e3fb}
-  .ipt::placeholder{color:#7a8aa3}
+  .ipt{width:100%;border:1px solid #3a4a5f;border-radius:8px;padding:10px 12px;font-size:14px;background:#1b2a40;color:#eaf1ff}
+  .ipt::placeholder{color:#8295b0}
   .ipt:focus{outline:none;border-color:#f97316;box-shadow:0 0 0 1px #f97316}
   .lbl{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9fb0cb;margin-bottom:4px}
   .ttable{width:100%;border-collapse:collapse;font-size:14px;color:#d8e3fb}
@@ -1233,7 +1233,7 @@ function showOrderReview(fileName, items){
     <td class="text-center"><input type="checkbox" ${it._include?'checked':''} onchange="window._orderImport[${i}]._include=this.checked"></td>
     <td class="mono font-body-sm" style="color:#ffb690;white-space:nowrap">${esc(it.item_id||'—')}</td>
     <td><input class="ipt" value="${esc(it.description)}" onchange="window._orderImport[${i}].description=this.value"></td>
-    <td style="width:84px"><input type="number" min="1" class="ipt text-center" value="${it.qty}" onchange="window._orderImport[${i}].qty=parseInt(this.value)||1"></td></tr>`).join('');
+    <td style="width:88px"><input type="number" min="1" class="ipt text-center mono" style="font-weight:700;background:#243650;border-color:#4a5d76;font-size:15px" value="${it.qty}" onchange="window._orderImport[${i}].qty=parseInt(this.value)||1"></td></tr>`).join('');
   modal(modalCard(`<div class="p-lg">
     <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-on-surface">Review order form</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
     <p class="font-body-sm text-on-surface-variant mb-md">${window._orderImport.length} line item(s) detected from <b>${esc(fileName)}</b>. Best-effort — edit text, fix quantities, untick noise, then create.</p>
