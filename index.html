@@ -1130,7 +1130,7 @@ function orderCard(o){
     <div class="h-1 w-full" style="background:${c}"></div>
     <div class="p-md">
       <div class="flex justify-between items-start mb-sm">
-        <div><div class="font-headline-md text-on-surface">${esc(o.description||'Order')}</div><div class="font-body-sm text-on-surface-variant">${esc(o.po?('PO '+o.po+' · '):'')}${esc(o.employee||'')}</div></div>
+        <div><div class="font-headline-md text-on-surface">${esc(o.description||'Order')}</div><div class="font-body-sm text-on-surface-variant">${o.primary_id?'<span class="mono" style="color:#ffb690">'+esc(o.primary_id)+'</span> · ':''}${o.part_no?'Part <span class="mono">'+esc(o.part_no)+'</span> · ':''}${esc(o.po?('PO '+o.po+' · '):'')}${esc(o.employee||'')}</div></div>
         <span class="inline-flex items-center px-2 py-1 rounded-DEFAULT font-label-sm text-white" style="background:${c}">${esc(st)}</span>
       </div>
       <div class="grid grid-cols-3 gap-sm font-body-sm mb-md">
@@ -1232,12 +1232,13 @@ function showOrderReview(fileName, items){
   const rows=window._orderImport.map((it,i)=>`<tr>
     <td class="text-center"><input type="checkbox" ${it._include?'checked':''} onchange="window._orderImport[${i}]._include=this.checked"></td>
     <td class="mono font-body-sm" style="color:#ffb690;white-space:nowrap">${esc(it.item_id||'—')}</td>
+    <td class="mono font-body-sm text-on-surface-variant" style="white-space:nowrap">${esc(it.part_no||'—')}</td>
     <td><input class="ipt" value="${esc(it.description)}" onchange="window._orderImport[${i}].description=this.value"></td>
     <td style="width:88px"><input type="number" min="1" class="ipt text-center mono" style="font-weight:700;background:#243650;border-color:#4a5d76;font-size:15px" value="${it.qty}" onchange="window._orderImport[${i}].qty=parseInt(this.value)||1"></td></tr>`).join('');
   modal(modalCard(`<div class="p-lg">
     <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-on-surface">Review order form</h3><button data-action="close-modal" class="text-on-surface-variant"><span class="material-symbols-outlined">close</span></button></div>
     <p class="font-body-sm text-on-surface-variant mb-md">${window._orderImport.length} line item(s) detected from <b>${esc(fileName)}</b>. Best-effort — edit text, fix quantities, untick noise, then create.</p>
-    <div class="overflow-y-auto border border-outline-variant rounded" style="max-height:50vh"><table class="ttable"><thead><tr><th></th><th>Item ID</th><th>Description</th><th class="text-center">Qty</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="overflow-y-auto border border-outline-variant rounded" style="max-height:50vh"><table class="ttable"><thead><tr><th></th><th>Item ID</th><th>Part No</th><th>Description</th><th class="text-center">Qty</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="flex gap-sm justify-end mt-lg"><button class="btn-ghost" data-action="close-modal">Cancel</button><button class="btn-primary" data-action="orders-commit">Create Orders</button></div>
   </div>`,'max-w-2xl'));
 }
@@ -1246,8 +1247,8 @@ async function commitOrders(){
   if(!items.length){ toast('Nothing ticked to create','info'); return; }
   let n=0;
   for(const it of items){
-    const o={ description:it.description.trim(), qty:parseInt(it.qty)||1, date_needed:'', po:'', employee:'', primary_id:it.item_id||'', unit:'',
-      notes:'Imported from order form'+(it.part_no?' · part '+it.part_no:''), status:'Pending', order_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs() };
+    const o={ description:it.description.trim(), qty:parseInt(it.qty)||1, date_needed:'', po:'', employee:'', primary_id:it.item_id||'', part_no:it.part_no||'', unit:'',
+      notes:'Imported from order form', status:'Pending', order_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs() };
     try{ await fb.push('orders', o); n++; }catch(e){}
   }
   window._orderImport=null; closeModal(); toast(n+' order(s) created','success');
