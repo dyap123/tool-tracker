@@ -80,8 +80,9 @@
   #modalRoot{position:fixed;inset:0;z-index:150;display:flex;align-items:center;justify-content:center;background:rgba(2,7,15,.7);padding:16px;backdrop-filter:blur(2px)}
   /* Print: only the print-area shows (stays light — renders on white paper) */
   @media print{
+    html,body{background:#fff !important}
     body>*:not(#printRoot){display:none !important}
-    #printRoot{display:block !important}
+    #printRoot{display:block !important;background:#fff !important;color:#111 !important}
     @page{ size:landscape; margin:10mm; }
   }
   #printRoot{display:none}
@@ -1485,7 +1486,7 @@ function printChecklist(){
    <div class="cols">${cols}</div>
    <div class="foot">COUNTED / CONTADO — write the quantity you physically count in the yellow box · escriba la cantidad que cuenta en la casilla amarilla. &nbsp; Source: Assets, On-Site status.</div>
   </div>`;
-  const css=`@page{size:17in 11in;margin:9mm} *{box-sizing:border-box} .chk{font-family:Inter,Arial,sans-serif;color:#111}
+  const css=`@page{size:17in 11in;margin:9mm} *{box-sizing:border-box} html,body{background:#fff} .chk{font-family:Inter,Arial,sans-serif;color:#111;background:#fff}
    .banner{display:flex;justify-content:space-between;align-items:center;background:#00703C;color:#fff;padding:10px 16px;border-radius:4px}
    .kick{font-size:9px;font-weight:700;letter-spacing:.05em}.title{font-size:20px;font-weight:800}.sub{font-size:10px;font-style:italic}.date{font-size:13px;font-weight:700}
    .total{background:#f0f6f3;border:1px solid #00703C;border-left:6px solid #00703C;margin:8px 0;padding:6px 14px;font-size:11px;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
@@ -1509,7 +1510,7 @@ function printSummary(){
     <table><thead><tr><th>Item ID</th><th>Description</th><th>Category</th><th>Assigned</th><th>Status</th><th>$/mo</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="sig"><div>Foreman: ____________________</div><div>Date: __________</div><div>Superintendent: ____________________</div></div>
   </div>`;
-  const css=`@page{size:11in 8.5in;margin:10mm} *{box-sizing:border-box} .sum{font-family:Inter,Arial,sans-serif;color:#111;font-size:11px}
+  const css=`@page{size:11in 8.5in;margin:10mm} *{box-sizing:border-box} html,body{background:#fff} .sum{font-family:Inter,Arial,sans-serif;color:#111;font-size:11px;background:#fff}
    .banner{display:flex;justify-content:space-between;align-items:center;background:#00703C;color:#fff;padding:10px 16px;border-radius:4px}
    .kick{font-size:9px;font-weight:700}.title{font-size:18px;font-weight:800}.date{font-size:13px;font-weight:700}
    .stats{display:flex;gap:24px;margin:10px 0;font-size:12px}.stats b{font-size:18px;color:#00703C;margin-right:4px}
