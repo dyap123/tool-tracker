@@ -99,6 +99,12 @@
   .ttable tbody tr:hover{background:#152031;cursor:pointer}
   .chip{padding:6px 12px;border-radius:9999px;font-size:11px;font-weight:700;border:1px solid #3a4a5f;color:#b7c8e1;background:#152031;cursor:pointer}
   .chip.on{background:#f97316;color:#fff;border-color:#f97316}
+  .iconbtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:1px solid #2a3548;background:#1a2638;color:#9fb0cb;transition:all .12s;flex-shrink:0;cursor:pointer}
+  .iconbtn:hover{background:#1f2a3c;border-color:#a78b7d;color:#d8e3fb}
+  .iconbtn.b-assign:hover{background:rgba(249,115,22,.18);border-color:#f97316;color:#fb923c}
+  .iconbtn.b-onsite:hover{background:rgba(34,197,94,.18);border-color:#22c55e;color:#4ade80}
+  .iconbtn.b-lost:hover{background:rgba(185,28,28,.20);border-color:#b91c1c;color:#ffb4ab}
+  .iconbtn.on{background:rgba(34,197,94,.18);border-color:#22c55e;color:#4ade80}
   .navlink{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;color:#9fb0cb;font-weight:600;border-left:3px solid transparent;transition:all .12s}
   .navlink:hover{background:#111c2d;color:#d8e3fb}
   .navlink.active{background:rgba(249,115,22,.14);color:#ffb690;border-left-color:#f97316}
@@ -899,7 +905,7 @@ function renderAssets(root){
          <td>${statusBadge(a.status)}</td>
          <td class="text-right font-bold mono">${a.unit_cost?money2(a.unit_cost):'—'}</td>
          <td>${a.assigned_to?`<span class="inline-flex items-center gap-2"><span class="w-6 h-6 rounded-full bg-secondary-container text-on-secondary-container text-[10px] font-bold inline-flex items-center justify-center flex-shrink-0">${esc(initials(a.assigned_to))}</span><span class="text-on-surface">${esc(a.assigned_to)}</span></span>`:'<span class="text-on-surface-variant italic">Unassigned</span>'}</td>
-         <td class="text-center">${(a.verified||'')==='Yes'?'<span class="material-symbols-outlined text-[18px]" style="color:#4ade80">check_circle</span>':((a.verified||'')==='Missing'?'<span class="material-symbols-outlined text-[18px]" style="color:#ffb4ab">cancel</span>':'<span class="text-outline">—</span>')}</td>
+         <td class="text-center"><button data-action="asset-onsite" data-key="${esc(a._key)}" class="iconbtn ${(a.verified||'')==='Yes'?'on':'b-onsite'}" title="Mark on-site / verified">${(a.verified||'')==='Yes'?'<span class="material-symbols-outlined text-[18px]">check_circle</span>':((a.verified||'')==='Missing'?'<span class="material-symbols-outlined text-[18px]" style="color:#ffb4ab">cancel</span>':'<span class="material-symbols-outlined text-[18px]">radio_button_unchecked</span>')}</button></td>
          <td><span class="material-symbols-outlined text-on-surface-variant">chevron_right</span></td></tr>`;}).join('')
      + `</tbody></table></div>`
      : emptyState('inventory_2', arr.length? 'No assets match the filter.' : 'No assets yet — Import a ToolHound report or Add a Tool.'));
@@ -1012,8 +1018,9 @@ function openAssetEdit(key){
       <div class="sm:col-span-2"><label class="lbl">Notes</label><input id="aeNotes" class="ipt" value="${esc(a.notes)}"></div>
     </div>
     <div class="flex gap-sm justify-between mt-lg flex-wrap">
-      <div class="flex gap-sm"><button class="btn-danger" data-action="asset-delete" data-key="${esc(key)}">Delete</button>
-      ${(a.status||'')!=='Lost'?`<button class="btn-ghost" style="color:#ba1a1a;border-color:#ba1a1a" data-action="asset-marklost" data-key="${esc(key)}">Mark Lost</button>`:''}</div>
+      <div class="flex gap-sm flex-wrap"><button class="btn-danger" data-action="asset-delete" data-key="${esc(key)}">Delete</button>
+      ${(a.status||'')!=='Lost'?`<button class="btn-ghost" style="color:#ffb4ab;border-color:#b91c1c" data-action="asset-marklost" data-key="${esc(key)}">Mark Lost</button>`:''}
+      ${(a.verified||'')!=='Yes'?`<button class="btn-ghost" style="color:#4ade80;border-color:#22c55e" data-action="asset-onsite" data-key="${esc(key)}"><span class="material-symbols-outlined text-[18px]">check_circle</span>Mark On-Site</button>`:''}</div>
       <div class="flex gap-sm"><button class="btn-ghost" data-action="close-modal">Cancel</button><button class="btn-primary" data-action="asset-save" data-key="${esc(key)}">Save</button></div>
     </div>
   </div>`,'max-w-xl'));
@@ -1288,6 +1295,8 @@ function dispatchAction4(a, el){
     case 'sum-bulk-assign': openBulkAssign(); return true;
     case 'bulk-assign-save': saveBulkAssign(); return true;
     case 'sum-bulk-clear': clearSummarySel(); return true;
+    case 'sum-onsite': (async()=>{ const a=state.assets[key]; if(!a)return; await fb.update('assets/'+key,{status:'On Site',verified:'Yes',verifiedAt:nowMs(),updatedAt:nowMs()}); toast('Marked on-site','success'); renderCurrent(); })(); return true;
+    case 'asset-onsite': (async()=>{ const a=state.assets[key]; if(!a)return; await fb.update('assets/'+key,{status:'On Site',verified:'Yes',verifiedAt:nowMs(),updatedAt:nowMs()}); closeModal(); toast('Marked on-site','success'); renderCurrent(); })(); return true;
     case 'export-summary-xlsx': exportSummaryXlsx(); return true;
     case 'goto-summary': assetsViewMode='summary'; setView('assets'); return true;
     case 'order-receive': orderSetStatus(key,'Delivered'); return true;
@@ -1318,7 +1327,7 @@ function summaryGridHtml(){
   const toolRow=t=>{ const k=keyByItem[t.item_id]; return `<div class="flex items-center gap-sm px-md py-1.5 hover:bg-surface-container-low">
      ${k?`<input type="checkbox" ${summarySel[k]?'checked':''} onchange="toggleSummarySel('${esc(k)}',this.checked)" class="accent-primary w-4 h-4 flex-shrink-0">`:'<span class="w-4 flex-shrink-0"></span>'}
      <div class="min-w-0 truncate flex-1"><span class="mono font-bold font-body-sm" style="color:#ffb690">${esc(t.item_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((t.description||'').slice(0,24))}</span>${fmBy[t.item_id]?` <span class="font-label-sm text-on-surface-variant">· ${esc(fmBy[t.item_id])}</span>`:''}</div>
-     <div class="flex items-center gap-2 flex-shrink-0"><span class="font-body-sm whitespace-nowrap mono">${t.unit_cost?money2(t.unit_cost):'—'}</span>${k?`<button data-action="sum-assign" data-key="${esc(k)}" class="text-on-surface-variant hover:text-primary-container" title="Assign foreman"><span class="material-symbols-outlined text-[18px]">person_add</span></button><button data-action="sum-marklost" data-key="${esc(k)}" class="text-on-surface-variant hover:text-error" title="Mark lost"><span class="material-symbols-outlined text-[18px]">report</span></button>`:''}</div></div>`; };
+     <div class="flex items-center gap-1.5 flex-shrink-0"><span class="font-body-sm whitespace-nowrap mono mr-1">${t.unit_cost?money2(t.unit_cost):'—'}</span>${k?`<button data-action="sum-assign" data-key="${esc(k)}" class="iconbtn b-assign" title="Assign foreman"><span class="material-symbols-outlined text-[18px]">person_add</span></button><button data-action="sum-onsite" data-key="${esc(k)}" class="iconbtn b-onsite" title="Mark on-site"><span class="material-symbols-outlined text-[18px]">check_circle</span></button><button data-action="sum-marklost" data-key="${esc(k)}" class="iconbtn b-lost" title="Mark lost"><span class="material-symbols-outlined text-[18px]">report</span></button>`:''}</div></div>`; };
   const cardWrap=inner=>`<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">${inner}</div>`;
   const selN=Object.keys(summarySel).length;
   const bar=`<div id="summaryBar" class="bg-surface-container border border-primary-container rounded-xl p-md mt-md flex items-center justify-between gap-sm flex-wrap" style="position:sticky;bottom:8px;z-index:20;box-shadow:0 8px 22px rgba(0,0,0,.5);${selN?'':'display:none'}"><span class="font-body-md text-on-surface"><b id="summarySelCount">${selN}</b> selected</span><div class="flex gap-sm flex-wrap"><button class="btn-ghost" data-action="sum-bulk-assign"><span class="material-symbols-outlined text-[18px]">person_add</span>Assign</button><button class="btn-ghost" data-action="sum-bulk-onsite"><span class="material-symbols-outlined text-[18px]">check_circle</span>On-Site</button><button class="btn-danger" data-action="sum-bulk-lost"><span class="material-symbols-outlined text-[18px]">report</span>Mark Lost</button><button class="btn-ghost" data-action="sum-bulk-clear">Clear</button></div></div>`;
@@ -1334,8 +1343,8 @@ function summaryGridHtml(){
       const cats=brandMap[b]; const all=Object.values(cats).flat();
       const mo=all.reduce((s,t)=>s+num(t.unit_cost),0);
       const catNames=Object.keys(cats).sort((x,y)=>CATEGORY_NAMES.indexOf(x)-CATEGORY_NAMES.indexOf(y));
-      return `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-hidden flex flex-col">
-        <div class="p-md border-b border-outline-variant"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(b)}</span><span class="chip on">${all.length}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}/mo · ${catNames.length} type${catNames.length===1?'':'s'}</span></div>
+      return `<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
+        <div class="p-md border-b border-outline-variant bg-surface-container-low"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(b)}</span><span class="chip on">${all.length}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}/mo · ${catNames.length} type${catNames.length===1?'':'s'}</span></div>
         <div class="overflow-y-auto" style="max-height:300px">${catNames.map(cn=>{
           const ts=cats[cn].sort((a,b)=>String(a.description).localeCompare(String(b.description)));
           return `<div class="px-md py-1 bg-surface-container-low font-label-md text-on-surface-variant flex items-center justify-between sticky top-0"><span>${esc(cn)}</span><span>${ts.length}</span></div><div class="divide-y divide-outline-variant">${ts.map(toolRow).join('')}</div>`;
@@ -1345,8 +1354,8 @@ function summaryGridHtml(){
   return toggle+cardWrap(groups.map(g=>{
     const tools=g.lines.flatMap(l=>l.tools).sort((a,b)=>String(a.description).localeCompare(String(b.description)));
     const mo=tools.reduce((s,t)=>s+num(t.unit_cost),0);
-    return `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-hidden flex flex-col">
-      <div class="p-md border-b border-outline-variant"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(g.category)}</span><span class="chip on">${g.total}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}/mo</span></div>
+    return `<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
+      <div class="p-md border-b border-outline-variant bg-surface-container-low"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(g.category)}</span><span class="chip on">${g.total}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}/mo</span></div>
       <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:240px">${tools.map(toolRow).join('')}</div></div>`;
   }).join(''))+bar;
 }
