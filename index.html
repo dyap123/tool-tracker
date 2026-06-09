@@ -236,6 +236,12 @@ function ordersArr(){ return Object.entries(state.orders||{}).map(([k,v])=>({_ke
 function lostArr(){ return Object.entries(state.lostLog||{}).map(([k,v])=>({_key:k, ...v})); }
 function onSite(a){ return (a.status||'').toLowerCase()==='on site'; }
 function monthlyCharge(){ return assetsArr().filter(onSite).reduce((s,a)=>s+num(a.unit_cost)*(parseInt(a.qty)||1),0); }
+let priceMode='monthly';   // 'monthly' = $/mo rental · 'buyout' = $ replacement/buy-out
+function pmVal(a){ return priceMode==='buyout'?num(a&&a.buyout):num(a&&a.unit_cost); }
+function pmSuffix(){ return priceMode==='buyout'?'':'/mo'; }
+function pmLabel(){ return priceMode==='buyout'?'Buyout':'$/mo'; }
+function pmTotal(){ return assetsArr().filter(onSite).reduce((s,a)=>s+pmVal(a)*(parseInt(a.qty)||1),0); }
+function pmToggle(){ return `<div class="flex gap-1" title="Show rental $/mo or buy-out $"><button data-action="price-mode" data-m="monthly" class="chip ${priceMode==='monthly'?'on':''}">$/mo</button><button data-action="price-mode" data-m="buyout" class="chip ${priceMode==='buyout'?'on':''}">Buyout</button></div>`; }
 function onSiteCount(){ return assetsArr().filter(onSite).length; }
 function lostAllTime(){ return (state.counters&&state.counters.lostAllTime)||lostArr().length; }
 
@@ -275,7 +281,7 @@ const HAND_TOOL_CATEGORY = 'Hand Tools';
 const BRANDS = ['DEWALT','MILWAUKEE','MAKITA','BOSCH','HILTI','METABO','RIDGID','RYOBI','PASLODE','HITACHI','HYTERA','LEICA','OZTEC','HONDA','STIHL','FESTOOL','KOBALT','KNAACK'];
 const MISC_SHEET_CATEGORIES = new Set(['Concrete P&F Equipment','Concrete Pump','Rigging & Hoisting Equip']);
 const CONSUMABLE_SHEET_CATEGORIES = new Set(['Concrete Forming Supplies','Formwork']);
-const CONSUMABLE_DESC_PATTERNS = ['SHE BOLT','NUT WASHER','CATHEAD','BRACKET - DOUBLE','BRACKET - PANEL CLIP','HAIRPIN','SNAPTIE','TURNBUCKLE - FORM ALIGNER','BARRICADE'];
+const CONSUMABLE_DESC_PATTERNS = ['SHE BOLT','NUT WASHER','CATHEAD','BRACKET - DOUBLE','BRACKET - PANEL CLIP','BRACKET - FOOTING','HAIRPIN','SNAPTIE','TURNBUCKLE - FORM','BARRICADE'];
 const CATEGORY_NAMES = ['Batteries','Circular Saws','Sawzalls','Drills & Impacts','Nail Guns','Hand Tools','Vacuums','Angle Grinders','Chargers','Layout Equipment','Jobsite & Storage','Concrete, Rigging & Misc','Power Equipment'];
 const BRAND_ORDER = ['DeWalt','Milwaukee','Makita','Bosch','Hilti','Metabo','Ridgid','Ryobi','Paslode','Hitachi','Hytera','Leica','Oztec','Honda','Stihl','Festool','Kobalt','Knaack','Unbranded'];
 const FLAG_UNBRANDED_IN = new Set(['Batteries','Circular Saws','Sawzalls','Drills & Impacts','Nail Guns','Angle Grinders','Chargers']);
@@ -521,7 +527,7 @@ function exportXlsx(rows, sheetName, filename){
    ============================================================ */
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-function blankAsset(){ return {item_id:'',serial:'',part_no:'',description:'',category:'',unit_cost:0,po:'',issued_date:'',assigned_to:'',status:'On Site',notes:'',qty:1,verified:'',verifiedAt:null,source:'manual'}; }
+function blankAsset(){ return {item_id:'',serial:'',part_no:'',description:'',category:'',unit_cost:0,buyout:0,po:'',issued_date:'',assigned_to:'',status:'On Site',notes:'',qty:1,verified:'',verifiedAt:null,source:'manual'}; }
 
 function openImport(){
   modal(modalCard(`
@@ -636,7 +642,7 @@ function mapRow(row,hmap,type,cat){
 function normalize(r, source){
   return { item_id:r.item_id||'', serial:r.serial||'', part_no:r.part_no||'', description:r.description||'',
     category:r.category||'', unit_cost:num(r.unit_cost), po:r.po||'', issued_date:r.issued_date||'',
-    assigned_to:r.assigned_to||'', status:r._status||'On Site', notes:'', qty:parseInt(r.qty)||1, source };
+    assigned_to:r.assigned_to||'', status:r._status||'On Site', notes:'', qty:parseInt(r.qty)||1, buyout:num(r.buyout), source };
 }
 
 // Pull text lines from a PDF. Uses the embedded text layer when present;
@@ -692,19 +698,20 @@ function parseRentalLines(lines){
   let section='';
   const hdr=/^(\d{8})\s+(.+?)\s+\$?\s*[\d.,]+\s*\/\s*dd/i;          // group header w/ daily rate
   const monthlyRe=/\$\s*([\d,]+)\s*\/\s*mo/i;                       // monthly rate on header
+  const sellRe=/\$\s*([\d,]+)\s*(?:Serialized|Bulk)\b/i;            // buyout / replacement (Sell) value
   const sub=/^(\d{3,6})\s+([0-9A-Za-z][0-9A-Za-z\-]{2,})\s+\d{1,2}\/\d{1,2}\/\d{2,4}\s+.*?\b(Partial|Return|Serialized)\b\s+(\d+)\s+\$?\s*([\d,]+\.\d{2})/i;
   const secRe=/^([A-Za-z][A-Za-z &\-\/]+?)\s+Notes:/i;              // section banner "Small Tools  Notes: ..."
   for(const raw of (lines||[])){
     const s=raw.trim(); if(!s) continue;
     const sec=secRe.exec(s); if(sec){ section=sec[1].trim(); continue; }
     const h=hdr.exec(s);
-    if(h){ const mo=monthlyRe.exec(s); cur={part:h[1], desc:h[2].trim().replace(/\s+/g,' '), section:section, monthly:mo?num(mo[1]):0}; continue; }
+    if(h){ const mo=monthlyRe.exec(s); const se=sellRe.exec(s); cur={part:h[1], desc:h[2].trim().replace(/\s+/g,' '), section:section, monthly:mo?num(mo[1]):0, buyout:se?num(se[1]):0}; continue; }
     const m=sub.exec(s);
     if(m){
       const tag=m[2].trim(); const qty=parseInt(m[4])||1;
       if(/^\d{2}\/\d{2}/.test(tag)) continue;                       // guard against a stray date
       const it=normalize({ item_id:tag, part_no:cur.part, serial:'', description:cur.desc,
-        category:cur.section||'', unit_cost:cur.monthly, qty:qty, issued_date:'', _status:'On Site' }, 'pdf');
+        category:cur.section||'', unit_cost:cur.monthly, buyout:cur.buyout, qty:qty, issued_date:'', _status:'On Site' }, 'pdf');
       it._review=true; it._raw=s; items.push(it);
     }
   }
@@ -842,12 +849,12 @@ function renderDashboard(root){
   const maxTotal=groups.reduce((m,g)=>Math.max(m,g.total),1);
   const recent=lostArr().sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,6);
   root.innerHTML = pageHeader('Dashboard', (state.config.projectName||'LACC Project')+' · live overview',
-    `<button class="btn-ghost" data-action="export-summary-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Cost Report</button>`)
+    pmToggle()+`<button class="btn-ghost" data-action="export-summary-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Cost Report</button>`)
   + `<div class="grid grid-cols-2 lg:grid-cols-4 gap-gutter mb-gutter">
       ${kpiCard('Total Assets', total, 'inventory_2', tagged+' tagged tools · '+bulk+' bulk lines')}
       ${kpiCardAccent('On-Site', onsite, 'place', '#fb923c')}
       ${kpiCardAccent('Verified', vpct+'%', 'verified', '#4ade80')}
-      ${kpiCard('Rental / mo', money(monthlyCharge()), 'payments')}
+      ${kpiCard(priceMode==='buyout'?'Buyout Value':'Rental / mo', money(pmTotal()), 'payments')}
       ${kpiCardErr('Tools Lost', lost, 'warning')}
       ${kpiCardAccent('Missing', missing, 'help', missing?'#ffb4ab':'#9fb0cb')}
       ${kpiCard('Unassigned', unassigned, 'person_off')}
@@ -903,19 +910,20 @@ function renderAssets(root){
        <div class="flex gap-1 flex-wrap">${chips}</div>
      </div>`
   + (filtered.length ? `<div class="bg-surface-container-lowest border border-outline-variant rounded overflow-x-auto"><table class="ttable"><thead><tr>
-       <th>Asset ID</th><th>Name / Model</th><th>Status</th><th class="text-right">$/mo</th><th>Assigned</th><th class="text-center">Verified</th><th></th></tr></thead><tbody id="assetRows">`
+       <th>Asset ID</th><th>Name / Model</th><th>Status</th><th class="text-right">${pmLabel()}</th><th>Assigned</th><th class="text-center">Verified</th><th></th></tr></thead><tbody id="assetRows">`
      + filtered.map(a=>{ const hay=[a.item_id,a.serial,a.description,a.category,a.assigned_to,a.part_no].join(' ').toLowerCase();
        return `<tr data-action="asset-edit" data-key="${esc(a._key)}" data-search="${esc(hay)}">
          <td><div class="flex items-center gap-2"><span class="material-symbols-outlined text-on-surface-variant text-[18px] flex-shrink-0">handyman</span><span class="mono font-bold" style="color:#ffb690">${esc(a.item_id||a.part_no||'—')}</span></div></td>
          <td><div class="font-semibold text-on-surface">${esc(a.description||'—')}</div><div class="font-body-sm text-on-surface-variant">${esc(a.category||'')}${a.source?' · '+esc(a.source):''}</div></td>
          <td>${statusBadge(a.status)}</td>
-         <td class="text-right font-bold mono">${a.unit_cost?money2(a.unit_cost):'—'}</td>
+         <td class="text-right font-bold mono">${pmVal(a)?money2(pmVal(a)):'—'}</td>
          <td>${a.assigned_to?`<span class="inline-flex items-center gap-2"><span class="w-6 h-6 rounded-full bg-secondary-container text-on-secondary-container text-[10px] font-bold inline-flex items-center justify-center flex-shrink-0">${esc(initials(a.assigned_to))}</span><span class="text-on-surface">${esc(a.assigned_to)}</span></span>`:'<span class="text-on-surface-variant italic">Unassigned</span>'}</td>
          <td class="text-center"><button data-action="asset-onsite" data-key="${esc(a._key)}" class="iconbtn ${(a.verified||'')==='Yes'?'on':'b-onsite'}" title="Mark on-site / verified">${(a.verified||'')==='Yes'?'<span class="material-symbols-outlined text-[18px]">check_circle</span>':((a.verified||'')==='Missing'?'<span class="material-symbols-outlined text-[18px]" style="color:#ffb4ab">cancel</span>':'<span class="material-symbols-outlined text-[18px]">radio_button_unchecked</span>')}</button></td>
          <td><span class="material-symbols-outlined text-on-surface-variant">chevron_right</span></td></tr>`;}).join('')
      + `</tbody></table></div>`
      : emptyState('inventory_2', arr.length? 'No assets match the filter.' : 'No assets yet — Import a ToolHound report or Add a Tool.'));
-  root.innerHTML = pageHeader('Inventory Registry', filtered.length+' of '+arr.length+' assets · '+money(monthlyCharge())+'/mo on site',
+  root.innerHTML = pageHeader('Inventory Registry', filtered.length+' of '+arr.length+' assets · '+money(pmTotal())+(priceMode==='buyout'?' buy-out':'/mo')+' on site',
+    pmToggle()+
     `<button class="btn-ghost" data-action="open-import"><span class="material-symbols-outlined text-[18px]">upload_file</span>Import</button>
      <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button>
      <button class="btn-primary" data-action="add-tool"><span class="material-symbols-outlined text-[18px]">add</span>Add Tool</button>`)
@@ -1091,8 +1099,9 @@ async function saveBulkAssign(){
 function exportSummaryXlsx(){
   const groups=groupForReconcile(assetsArr());
   if(!groups.length){ toast('No on-site tools to report','info'); return; }
-  const rows=groups.map(g=>{ const mo=g.lines.flatMap(l=>l.tools).reduce((s,t)=>s+num(t.unit_cost),0); return {'Category':g.category,'Tools On-Site':g.total,'Monthly Cost':mo}; });
-  rows.push({'Category':'TOTAL','Tools On-Site':rows.reduce((s,r)=>s+r['Tools On-Site'],0),'Monthly Cost':rows.reduce((s,r)=>s+r['Monthly Cost'],0)});
+  const buyBy={}; assetsArr().forEach(a=>{ if(a.item_id) buyBy[a.item_id]=num(a.buyout); });
+  const rows=groups.map(g=>{ const tools=g.lines.flatMap(l=>l.tools); const mo=tools.reduce((s,t)=>s+num(t.unit_cost),0); const buy=tools.reduce((s,t)=>s+(buyBy[t.item_id]||0),0); return {'Category':g.category,'Tools On-Site':g.total,'Monthly Cost':mo,'Buyout Value':buy}; });
+  rows.push({'Category':'TOTAL','Tools On-Site':rows.reduce((s,r)=>s+r['Tools On-Site'],0),'Monthly Cost':rows.reduce((s,r)=>s+r['Monthly Cost'],0),'Buyout Value':rows.reduce((s,r)=>s+r['Buyout Value'],0)});
   exportXlsx(rows,'Cost Summary','YapHound Cost Summary '+todayStr()+'.xlsx');
 }
 async function deleteAsset(key){ if(!await requirePin()) return; try{ await fb.remove('assets/'+key); closeModal(); toast('Deleted','success'); }catch(e){ toast('Failed: '+e.message,'error'); } }
@@ -1120,6 +1129,8 @@ function ordersGroupHtml(arr, by){
   const ci=x=>{ const i=CATEGORY_NAMES.indexOf(x); return i<0?999:i; };
   const names=Object.keys(groups).sort((a,b)=> by==='brand' ? (((_brandRankMap[a]??999)-(_brandRankMap[b]??999))||a.localeCompare(b)) : (ci(a)-ci(b)||a.localeCompare(b)));
   if(!names.length) return emptyState('local_shipping','No orders to group.');
+  const selN=Object.keys(orderSel).length;
+  const bar=`<div id="orderSelBar" class="bg-surface-container border border-primary-container rounded-xl p-md mt-md flex items-center justify-between gap-sm flex-wrap" style="position:sticky;bottom:8px;z-index:20;box-shadow:0 8px 22px rgba(0,0,0,.5);${selN?'':'display:none'}"><span class="font-body-md text-on-surface"><b id="orderSelCount">${selN}</b> selected</span><div class="flex gap-sm flex-wrap"><button class="btn-primary" data-action="order-bulk-receive"><span class="material-symbols-outlined text-[18px]">where_to_vote</span>Mark Arrived → On-Site</button><button class="btn-ghost" data-action="order-bulk-clear">Clear</button></div></div>`;
   return `<div id="orderList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">`+names.map(n=>{
     const os=groups[n];
     return `<div class="sum-card bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
@@ -1127,11 +1138,26 @@ function ordersGroupHtml(arr, by){
       <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:300px">${os.map(o=>{
         const hay=((o.description||'')+' '+(o.primary_id||'')+' '+(o.part_no||'')+' '+(o.status||'')).toLowerCase();
         const sc={'Pending':'#fb923c','Delivered':'#4ade80','Cancelled':'#9fb0cb'}[o.status||'Pending']||'#9fb0cb';
-        return `<div data-search="${esc(hay)}" class="flex items-center justify-between gap-sm px-md py-1.5 hover:bg-surface-container-low">
-          <div class="min-w-0 truncate"><span class="mono font-bold font-body-sm" style="color:#ffb690">${esc(o.primary_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((o.description||'').slice(0,28))}</span></div>
+        return `<div data-search="${esc(hay)}" class="flex items-center gap-sm px-md py-1.5 hover:bg-surface-container-low">
+          <input type="checkbox" ${orderSel[o._key]?'checked':''} onchange="toggleOrderSel('${esc(o._key)}',this.checked)" class="accent-primary w-4 h-4 flex-shrink-0">
+          <div class="min-w-0 truncate flex-1"><span class="mono font-bold font-body-sm" style="color:#ffb690">${esc(o.primary_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((o.description||'').slice(0,26))}</span></div>
           <div class="flex items-center gap-2 flex-shrink-0"><span class="font-label-sm" style="color:${sc}">${esc(o.status||'')}</span><span class="font-body-sm mono">×${esc(o.qty||1)}</span></div></div>`;
       }).join('')}</div></div>`;
-  }).join('')+`</div>`;
+  }).join('')+`</div>`+bar;
+}
+var orderSel={};
+function toggleOrderSel(k,c){ if(c) orderSel[k]=true; else delete orderSel[k]; updateOrderSelBar(); }
+function updateOrderSelBar(){ const n=Object.keys(orderSel).length; const bar=document.getElementById('orderSelBar'); const c=document.getElementById('orderSelCount'); if(c)c.textContent=n; if(bar)bar.style.display=n?'':'none'; }
+function clearOrderSel(){ orderSel={}; renderCurrent(); }
+async function bulkOrderReceive(){
+  const keys=Object.keys(orderSel).filter(k=>state.orders[k] && (state.orders[k].status||'')!=='Cancelled');
+  if(!keys.length){ toast('Select orders first','info'); return; }
+  const aUpd={};
+  keys.forEach(k=>{ const o=state.orders[k]; const a={...blankAsset(), item_id:o.primary_id||'', part_no:o.part_no||'', description:o.description||'', qty:parseInt(o.qty)||1, po:o.po||'', status:'On Site', source:'order', issued_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs()}; aUpd[assetKey(a.item_id,a.part_no,a.description)]=a; });
+  try{ await fb.update('assets', aUpd);
+    for(const k of keys){ await fb.update('orders/'+k,{status:'Delivered',updatedAt:nowMs()}); }
+    orderSel={}; toast(keys.length+' arrived & added to inventory','success'); renderCurrent();
+  }catch(e){ toast('Failed: '+e.message,'error'); }
 }
 function renderOrders(root){
   const arr=ordersArr().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
@@ -1166,9 +1192,8 @@ function orderCard(o){
         <div><div class="font-headline-md text-on-surface">${esc(o.description||'Order')}</div><div class="font-body-sm text-on-surface-variant">${o.primary_id?'<span class="mono" style="color:#ffb690">'+esc(o.primary_id)+'</span> · ':''}${o.part_no?'Part <span class="mono">'+esc(o.part_no)+'</span> · ':''}${esc(o.po?('PO '+o.po+' · '):'')}${esc(o.employee||'')}</div></div>
         <span class="inline-flex items-center px-2 py-1 rounded-DEFAULT font-label-sm text-white" style="background:${c}">${esc(st)}</span>
       </div>
-      <div class="grid grid-cols-3 gap-sm font-body-sm mb-md">
-        <div><div class="lbl">Qty</div>${esc(o.qty||'—')}</div>
-        <div><div class="lbl">Need By</div>${esc(o.date_needed||'—')}</div>
+      <div class="grid grid-cols-2 gap-sm font-body-sm mb-md">
+        <div><div class="lbl">Qty</div><span class="mono font-bold">${esc(o.qty||'—')}</span></div>
         <div><div class="lbl">Ordered</div>${esc(o.order_date||'—')}</div>
       </div>
       <div class="flex gap-sm flex-wrap">
@@ -1365,6 +1390,7 @@ function dispatchAction4(a, el){
     case 'order-save': saveOrder(); return true;
     case 'order-upload': { const f=document.getElementById('orderDropFile'); if(f) f.click(); return true; }
     case 'orders-commit': commitOrders(); return true;
+    case 'price-mode': priceMode=el.dataset.m; renderCurrent(); return true;
     case 'assets-mode': assetsViewMode=el.dataset.m; renderCurrent(); return true;
     case 'audit-mode': auditMode=el.dataset.m; renderCurrent(); return true;
     case 'fm-view': assetForeman=el.dataset.key; assetsViewMode='table'; setView('assets'); return true;
@@ -1383,6 +1409,8 @@ function dispatchAction4(a, el){
     case 'export-summary-xlsx': exportSummaryXlsx(); return true;
     case 'goto-summary': assetsViewMode='summary'; setView('assets'); return true;
     case 'order-view': orderView=el.dataset.v; renderCurrent(); return true;
+    case 'order-bulk-receive': bulkOrderReceive(); return true;
+    case 'order-bulk-clear': clearOrderSel(); return true;
     case 'order-receive': orderReceive(key); return true;
     case 'order-cancel': orderSetStatus(key,'Cancelled'); return true;
     case 'order-toinv': orderToInventory(key); return true;
@@ -1401,18 +1429,20 @@ function dispatchAction4(a, el){
 let assetsViewMode='table', auditMode='audit', summaryGroupBy='category', summaryQuery='', auditQuery='';
 function summaryGridHtml(){
   const groups=groupForReconcile(assetsArr());          // same categorization as the foreman report
-  const fmBy={}, keyByItem={};
-  assetsArr().forEach(a=>{ if(a.item_id){ fmBy[a.item_id]=a.assigned_to||''; keyByItem[a.item_id]=a._key; } });
+  const fmBy={}, keyByItem={}, priceBy={};
+  assetsArr().forEach(a=>{ if(a.item_id){ fmBy[a.item_id]=a.assigned_to||''; keyByItem[a.item_id]=a._key; priceBy[a.item_id]={mo:num(a.unit_cost),buy:num(a.buyout)}; } });
+  const tprice=t=> priceMode==='buyout' ? ((priceBy[t.item_id]||{}).buy||0) : num(t.unit_cost);
   if(!groups.length) return emptyState('category','No on-site tools to summarize. Import a ToolHound report first.');
   const toggle=`<div class="flex items-center gap-2 mb-md flex-wrap"><span class="font-label-md text-on-surface-variant">Group by</span>
     <button data-action="sum-groupby" data-g="category" class="chip ${summaryGroupBy==='category'?'on':''}">Category</button>
     <button data-action="sum-groupby" data-g="brand" class="chip ${summaryGroupBy==='brand'?'on':''}">Brand</button>
     <div class="relative ml-auto"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input id="summarySearch" value="${esc(summaryQuery)}" oninput="summarySearchInput(this.value)" placeholder="Search tools…" class="ipt pl-8" style="width:210px" autocomplete="off"></div>
+    ${pmToggle()}
     <button class="btn-ghost" data-action="export-summary-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Cost Report</button></div>`;
   const toolRow=t=>{ const k=keyByItem[t.item_id]; const hay=((t.item_id||'')+' '+(t.description||'')+' '+(fmBy[t.item_id]||'')).toLowerCase(); return `<div data-search="${esc(hay)}" class="flex items-center gap-sm px-md py-1.5 hover:bg-surface-container-low">
      ${k?`<input type="checkbox" ${summarySel[k]?'checked':''} onchange="toggleSummarySel('${esc(k)}',this.checked)" class="accent-primary w-4 h-4 flex-shrink-0">`:'<span class="w-4 flex-shrink-0"></span>'}
      <div class="min-w-0 truncate flex-1"><span class="mono font-bold font-body-sm" style="color:#ffb690">${esc(t.item_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((t.description||'').slice(0,24))}</span>${fmBy[t.item_id]?` <span class="font-label-sm text-on-surface-variant">· ${esc(fmBy[t.item_id])}</span>`:''}</div>
-     <div class="flex items-center gap-1.5 flex-shrink-0"><span class="font-body-sm whitespace-nowrap mono mr-1">${t.unit_cost?money2(t.unit_cost):'—'}</span>${k?`<button data-action="sum-assign" data-key="${esc(k)}" class="iconbtn b-assign" title="Assign foreman"><span class="material-symbols-outlined text-[18px]">person_add</span></button><button data-action="sum-onsite" data-key="${esc(k)}" class="iconbtn b-onsite" title="Mark on-site"><span class="material-symbols-outlined text-[18px]">check_circle</span></button><button data-action="sum-marklost" data-key="${esc(k)}" class="iconbtn b-lost" title="Mark lost"><span class="material-symbols-outlined text-[18px]">report</span></button>`:''}</div></div>`; };
+     <div class="flex items-center gap-1.5 flex-shrink-0"><span class="font-body-sm whitespace-nowrap mono mr-1">${tprice(t)?money2(tprice(t)):'—'}</span>${k?`<button data-action="sum-assign" data-key="${esc(k)}" class="iconbtn b-assign" title="Assign foreman"><span class="material-symbols-outlined text-[18px]">person_add</span></button><button data-action="sum-onsite" data-key="${esc(k)}" class="iconbtn b-onsite" title="Mark on-site"><span class="material-symbols-outlined text-[18px]">check_circle</span></button><button data-action="sum-marklost" data-key="${esc(k)}" class="iconbtn b-lost" title="Mark lost"><span class="material-symbols-outlined text-[18px]">report</span></button>`:''}</div></div>`; };
   const cardWrap=inner=>`<div id="summaryGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">${inner}</div>`;
   const selN=Object.keys(summarySel).length;
   const bar=`<div id="summaryBar" class="bg-surface-container border border-primary-container rounded-xl p-md mt-md flex items-center justify-between gap-sm flex-wrap" style="position:sticky;bottom:8px;z-index:20;box-shadow:0 8px 22px rgba(0,0,0,.5);${selN?'':'display:none'}"><span class="font-body-md text-on-surface"><b id="summarySelCount">${selN}</b> selected</span><div class="flex gap-sm flex-wrap"><button class="btn-ghost" data-action="sum-bulk-assign"><span class="material-symbols-outlined text-[18px]">person_add</span>Assign</button><button class="btn-ghost" data-action="sum-bulk-onsite"><span class="material-symbols-outlined text-[18px]">check_circle</span>On-Site</button><button class="btn-danger" data-action="sum-bulk-lost"><span class="material-symbols-outlined text-[18px]">report</span>Mark Lost</button><button class="btn-ghost" data-action="sum-bulk-clear">Clear</button></div></div>`;
@@ -1426,10 +1456,10 @@ function summaryGridHtml(){
     const brands=Object.keys(brandMap).sort((a,b)=>((_brandRankMap[a]??999)-(_brandRankMap[b]??999))||a.localeCompare(b));
     return toggle+cardWrap(brands.map(b=>{
       const cats=brandMap[b]; const all=Object.values(cats).flat();
-      const mo=all.reduce((s,t)=>s+num(t.unit_cost),0);
+      const mo=all.reduce((s,t)=>s+tprice(t),0);
       const catNames=Object.keys(cats).sort((x,y)=>CATEGORY_NAMES.indexOf(x)-CATEGORY_NAMES.indexOf(y));
       return `<div class="sum-card bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
-        <div class="p-md border-b border-outline-variant bg-surface-container-low"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(b)}</span><span class="chip on">${all.length}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}/mo · ${catNames.length} type${catNames.length===1?'':'s'}</span></div>
+        <div class="p-md border-b border-outline-variant bg-surface-container-low"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(b)}</span><span class="chip on">${all.length}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}${pmSuffix()} · ${catNames.length} type${catNames.length===1?'':'s'}</span></div>
         <div class="overflow-y-auto" style="max-height:300px">${catNames.map(cn=>{
           const ts=cats[cn].sort((a,b)=>String(a.description).localeCompare(String(b.description)));
           return `<div class="sum-sub"><div class="px-md py-1 bg-surface-container-low font-label-md text-on-surface-variant flex items-center justify-between sticky top-0"><span>${esc(cn)}</span><span>${ts.length}</span></div><div class="divide-y divide-outline-variant">${ts.map(toolRow).join('')}</div></div>`;
@@ -1438,9 +1468,9 @@ function summaryGridHtml(){
   }
   return toggle+cardWrap(groups.map(g=>{
     const tools=g.lines.flatMap(l=>l.tools).sort((a,b)=>String(a.description).localeCompare(String(b.description)));
-    const mo=tools.reduce((s,t)=>s+num(t.unit_cost),0);
+    const mo=tools.reduce((s,t)=>s+tprice(t),0);
     return `<div class="sum-card bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
-      <div class="p-md border-b border-outline-variant bg-surface-container-low"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(g.category)}</span><span class="chip on">${g.total}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}/mo</span></div>
+      <div class="p-md border-b border-outline-variant bg-surface-container-low"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(g.category)}</span><span class="chip on">${g.total}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}${pmSuffix()}</span></div>
       <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:240px">${tools.map(toolRow).join('')}</div></div>`;
   }).join(''))+bar;
 }
