@@ -1260,6 +1260,8 @@ function parseOrderLines(lines){
   // ---- ToolHound transaction receipt: "<item_id> <part_no> [desc] Issue <qty> EA" ----
   const dataRe=/^(\S+)\s+(\S+)\s+(?:(.+?)\s+)?(?:Issue|Return|Transfer|Exchange)\s+(\d+)\s+(?:EA|PC|PCS|UN|BX|CS|LF|GAL|SET|PR|DZ|ROLL)\b/i;
   const skipDesc=/^(Transaction|Item ID|Part No|Description|Signature|Reference|Notes|Jobsite|Requisition|Date\b|Entity|Page|Address|OAKLAND|Oakland|Los Angeles|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i;
+  // ToolHound non-tool "service" lines (delivery / pickup / transfer / freight charges) — not real items
+  const skipItem=/3RD\s*PARTY|DEL\/PU|\bXFER\b|DELIVERY\s*CHARGE|PICK\s*-?\s*UP\s*CHARGE|\bFREIGHT\b|FUEL\s*SURCHARGE|RESTOCK|MISC\s*CHARGE/i;
   const looksDesc=x=> x && !dataRe.test(x) && /[A-Za-z]{3}/.test(x) && !skipDesc.test(x)
         && !/\(\d{3}\)/.test(x) && !/\b[A-Za-z]{2}\.?\s+\d{5}\b/.test(x)            // phones / city-state-zip
         && !/^\d+\s+(S\.|N\.|E\.|W\.|South|North|East|West|[A-Z][a-z]+\s+(St|Ave|Dr|Blvd|Rd|Capwell))/i.test(x);  // street address
@@ -1278,6 +1280,7 @@ function parseOrderLines(lines){
         desc=parts.join(' ');
       }
       desc=desc.replace(/\s{2,}/g,' ').trim() || partNo;
+      if(skipItem.test(desc)) continue;                 // drop 3rd-party del/pu/xfer & charge lines
       items.push({item_id:itemId, part_no:partNo, description:desc, qty});
     }
     if(items.length) return items;
@@ -1295,6 +1298,7 @@ function parseOrderLines(lines){
     if(!desc || !qty || qty>9999) continue;
     desc=desc.replace(/\s{2,}/g,' ').replace(/[._]{2,}/g,' ').replace(/\s*\$\s*[\d,.]+$/,'').trim();
     if(!/[A-Za-z]{3}/.test(desc)) continue;
+    if(skipItem.test(desc)) continue;                   // drop 3rd-party del/pu/xfer & charge lines
     const k=desc.toLowerCase()+'|'+qty; if(seen.has(k)) continue; seen.add(k);
     items.push({qty, description:desc});
   }
