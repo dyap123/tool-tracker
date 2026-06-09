@@ -931,31 +931,41 @@ function renderAssets(root){
    + (assetsViewMode==='summary' ? summaryGridHtml() : tableHtml);
   if(assetsViewMode==='table') applyAssetSearch(); else applySummarySearch();
 }
+let foremanOpen={};
 function renderForemen(root){
   const onsite=assetsArr().filter(onSite);
   const names=foremanNames();
   const byFm={}; const unassigned=[];
   onsite.forEach(a=>{ const n=(a.assigned_to||'').trim(); if(n){ (byFm[n]=byFm[n]||[]).push(a); } else unassigned.push(a); });
   names.forEach(n=>{ if(!byFm[n]) byFm[n]=[]; });
-  const _mo=tools=>tools.reduce((s,a)=>s+num(a.unit_cost)*(parseInt(a.qty)||1),0);
-  const cards=Object.keys(byFm).sort((a,b)=>a.localeCompare(b)).map(n=>foremanCard(n, byFm[n].length, _mo(byFm[n]), false));
-  if(unassigned.length) cards.push(foremanCard('Unassigned', unassigned.length, _mo(unassigned), true));
-  root.innerHTML = pageHeader('Foremen', names.length+' on roster · shared with the attendance app',
+  const cards=Object.keys(byFm).sort((a,b)=>a.localeCompare(b)).map(n=>foremanCard(n, byFm[n], false));
+  if(unassigned.length) cards.push(foremanCard('Unassigned', unassigned, true));
+  root.innerHTML = pageHeader('Foremen', names.length+' on roster · click a foreman to assign or move their tools',
     `<button class="btn-ghost" data-action="fm-refresh"><span class="material-symbols-outlined text-[18px]">sync</span>Sync roster</button>`)
-   + (cards.length ? `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">`+cards.join('')+`</div>`
+   + (cards.length ? `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter items-start">`+cards.join('')+`</div>`
       : emptyState('engineering','No foremen on the roster yet.'));
 }
 function initials(n){ return (n||'').split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase(); }
-function foremanCard(name, count, mo, isUnassigned){
+function foremanCard(name, tools, isUnassigned){
   const ini=isUnassigned?'?':initials(name);
-  return `<div class="bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
-    <div class="flex items-center gap-sm">
+  const mo=tools.reduce((s,a)=>s+pmVal(a)*(parseInt(a.qty)||1),0);
+  const open=!!foremanOpen[name];
+  const opts=cur=>['<option value="">— Unassigned —</option>'].concat(foremanNames().map(x=>`<option value="${esc(x)}" ${cur===x?'selected':''}>${esc(x)}</option>`)).join('');
+  return `<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+    <button data-action="fm-toggle" data-key="${esc(name)}" class="w-full flex items-center gap-sm p-md hover:bg-surface-container-low text-left">
       <div class="w-11 h-11 rounded-full ${isUnassigned?'bg-surface-container text-on-surface-variant':'bg-primary-container text-white'} flex items-center justify-center font-bold flex-shrink-0">${esc(ini)}</div>
-      <div class="min-w-0"><div class="font-headline-md text-on-surface truncate">${esc(name)}</div><div class="font-body-sm text-on-surface-variant">${count} tool${count===1?'':'s'} · ${money(mo)}/mo</div></div>
-    </div>
-    <button class="btn-ghost w-full justify-center" data-action="fm-view" data-key="${esc(isUnassigned?'__none__':name)}"><span class="material-symbols-outlined text-[18px]">inventory_2</span>View tools</button>
+      <div class="min-w-0 flex-1"><div class="font-headline-md text-on-surface truncate">${esc(name)}</div><div class="font-body-sm text-on-surface-variant">${tools.length} tool${tools.length===1?'':'s'} · ${money(mo)}${pmSuffix()}</div></div>
+      <span class="material-symbols-outlined text-on-surface-variant">${open?'expand_less':'expand_more'}</span>
+    </button>
+    ${open?`<div class="border-t border-outline-variant divide-y divide-outline-variant overflow-y-auto" style="max-height:360px">${
+      tools.length ? tools.slice().sort((a,b)=>String(a.description).localeCompare(String(b.description))).map(a=>`<div class="flex items-center gap-sm px-md py-2">
+        <div class="min-w-0 flex-1"><span class="mono font-bold font-body-sm" style="color:#ffb690">${esc(a.item_id||'—')}</span> <span class="font-body-sm text-on-surface-variant">${esc((a.description||'').slice(0,24))}</span></div>
+        <select onchange="reassignTool('${esc(a._key)}',this.value)" class="ipt" style="width:auto;min-width:140px;padding:5px 8px;font-size:12px" title="Move to foreman">${opts(a.assigned_to||'')}</select>
+      </div>`).join('') : `<div class="px-md py-3 font-body-sm text-on-surface-variant">No tools here yet — open another foreman (or Unassigned) and use a dropdown to move tools to <b>${esc(name)}</b>.</div>`
+    }</div>`:''}
   </div>`;
 }
+async function reassignTool(key, fm){ const a=state.assets[key]; if(!a) return; try{ await fb.update('assets/'+key,{assigned_to:fm,updatedAt:nowMs()}); toast(fm?('Moved to '+fm):'Unassigned','success'); renderCurrent(); }catch(e){ toast('Failed','error'); } }
 // ---- Foreman roster (shared with the foreman-attendance app) ----
 // Pulls the same crew roster the attendance app uses, so foreman identities match
 // across both apps (this is what makes "link a foreman's inventory to their app" work).
@@ -1394,6 +1404,7 @@ function dispatchAction4(a, el){
     case 'assets-mode': assetsViewMode=el.dataset.m; renderCurrent(); return true;
     case 'audit-mode': auditMode=el.dataset.m; renderCurrent(); return true;
     case 'fm-view': assetForeman=el.dataset.key; assetsViewMode='table'; setView('assets'); return true;
+    case 'fm-toggle': foremanOpen[el.dataset.key]=!foremanOpen[el.dataset.key]; renderCurrent(); return true;
     case 'fm-refresh': loadCrewForemen().then(()=>{ toast('Roster synced','success'); renderCurrent(); }); return true;
     case 'sum-groupby': summaryGroupBy=el.dataset.g; renderCurrent(); return true;
     case 'sum-assign': openAssignModal(key); return true;
