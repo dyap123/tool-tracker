@@ -1591,25 +1591,66 @@ function printChecklist(){
   const visible=CATEGORY_NAMES.filter(n=>buckets[n].total>0);
   const total=visible.reduce((s,n)=>s+buckets[n].total,0);
   if(!total){ toast('No on-site tools to count','info'); return; }
-  let cols='';
-  visible.forEach(n=>{ const b=buckets[n]; cols+=`<div class="cat"><div class="cat-h"><span>${esc(n)}</span><span>${b.total}</span></div>`+
-    b.rows.map(r=>`<div class="ln"><span class="lab">${esc(r.label)}</span><span class="sys">${r.qty}</span><span class="box"></span></div>`).join('')+`</div>`; });
+  const cols=visible.map(n=>{ const b=buckets[n];
+    return `<div class="cat"><div class="cat-h">${esc(n.toUpperCase())} <span class="ct">TOTAL ON SITE: ${b.total}</span></div>
+      <div class="ch"><span class="lab">ITEM</span><span class="sys">QTY</span><span class="boxh">COUNTED</span></div>`+
+      b.rows.map(r=>`<div class="ln${r.flagged?' flag':''}"><span class="lab">${esc(r.label.replace(/\s*⚑.*$/,''))}${r.flagged?' <b class="nid">■ needs ID</b>':''}</span><span class="sys">${r.qty}</span><span class="box"></span></div>`).join('')+`</div>`;
+  }).join('');
+  // page 2 — bulk materials grouped
+  const bulk={};
+  arr.forEach(a=>{ if((a.status||'').toLowerCase()!=='on site') return; const desc=(a.description||'').trim(); if(!desc) return; const sc=(a.category||'').trim();
+    if(!(CONSUMABLE_SHEET_CATEGORIES.has(sc)||isConsumable(desc))) return; bulk[desc]=(bulk[desc]||0)+qtyOf(a.qty!=null?a.qty:1); });
+  const bg={Hardware:[],Brackets:[],Formwork:[],Safety:[],Other:[]};
+  Object.entries(bulk).forEach(([d,q])=>{ const u=d.toUpperCase(); let g='Other';
+    if(/BRACKET|TURNBUCKLE/.test(u)) g='Brackets';
+    else if(/SHE BOLT|NUT WASHER|CATHEAD|QUICK BOLT|HAIRPIN|SNAPTIE|\bBOLT\b|\bWASHER\b/.test(u)) g='Hardware';
+    else if(/BARRICADE|SAFETY|CONE|FENCE/.test(u)) g='Safety';
+    else if(/GIRDER|PLATE|FORM|PANEL/.test(u)) g='Formwork';
+    bg[g].push({d,q}); });
+  const bulkTotal=Object.values(bulk).reduce((s,q)=>s+q,0);
+  const bcol={Hardware:'#c79009',Brackets:'#c2620a',Formwork:'#1f6feb',Safety:'#b91c1c',Other:'#6d7589'};
+  const bulkCols=Object.keys(bg).filter(g=>bg[g].length).map(g=>{ const items=bg[g].slice().sort((a,b)=>b.q-a.q); const t=items.reduce((s,i)=>s+i.q,0);
+    return `<div class="cat"><div class="cat-h" style="background:${bcol[g]}">${g.toUpperCase()} <span class="ct">TOTAL: ${t.toLocaleString()}</span></div>
+      <div class="ch"><span class="sys2">QTY</span><span class="lab">ITEM</span></div>`+
+      items.map(i=>`<div class="ln"><span class="sys2">${i.q.toLocaleString()}</span><span class="lab">${esc(i.d)}</span></div>`).join('')+`</div>`;
+  }).join('');
+  const dt=new Date();
+  const dow=dt.toLocaleDateString('en-US',{weekday:'long'}).toUpperCase();
+  const md=dt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}).toUpperCase();
   const html=`<div class="chk">
-   <div class="banner"><div><div class="kick">WEBCOR BUILDERS · ${esc(state.config.projectName||'LACC PROJECT')}</div><div class="title">TOOL COUNT — FIELD CHECKLIST</div><div class="sub">Conteo de Herramientas — Lista de Verificación</div></div><div class="date">${new Date().toLocaleDateString()}</div></div>
-   <div class="total">TOTAL TOOLS ON SITE · <i>Total de Herramientas en Sitio</i> <b>${total}</b><span>across ${visible.length} categories · en ${visible.length} categorías</span>${excludedConsumableQty?`<span> &nbsp;|&nbsp; + ${excludedConsumableQty} BULK MATERIALS · materiales a granel</span>`:''}</div>
-   <div class="cols">${cols}</div>
-   <div class="foot">COUNTED / CONTADO — write the quantity you physically count in the yellow box · escriba la cantidad que cuenta en la casilla amarilla. &nbsp; Source: Assets, On-Site status.</div>
-  </div>`;
-  const css=`@page{size:17in 11in;margin:9mm} *{box-sizing:border-box} html,body{background:#fff} .chk{font-family:Inter,Arial,sans-serif;color:#111;background:#fff}
-   .banner{display:flex;justify-content:space-between;align-items:center;background:#00703C;color:#fff;padding:10px 16px;border-radius:4px}
-   .kick{font-size:9px;font-weight:700;letter-spacing:.05em}.title{font-size:20px;font-weight:800}.sub{font-size:10px;font-style:italic}.date{font-size:13px;font-weight:700}
-   .total{background:#f0f6f3;border:1px solid #00703C;border-left:6px solid #00703C;margin:8px 0;padding:6px 14px;font-size:11px;font-weight:700;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
-   .total b{font-size:26px;color:#00703C;margin:0 8px}.total span{font-weight:400;color:#555;font-size:9px}
+    <div class="wm"></div>
+    <div class="banner"><div><div class="kick">WEBCOR BUILDERS · ${esc(state.config.projectName||'LACC PROJECT')}</div><div class="title">TOOL COUNT — FIELD CHECKLIST</div><div class="sub">Walk the site, count each tool, write the number in COUNTED. · Conteo de Herramientas.</div></div>
+      <div class="rt"><div class="dow">${dow}</div><div class="date">${md}</div><div class="onb">${total} ON SITE${excludedConsumableQty?` + ${excludedConsumableQty.toLocaleString()} BULK`:''}</div><div class="meta">${visible.length} categories · ${visible.length} categorías${bulkTotal?' · bulk on page 2':''}</div></div></div>
+    <div class="total"><b>${total}</b> TOTAL TOOLS ON SITE · <i>Total de Herramientas en Sitio</i> · across ${visible.length} categories${excludedConsumableQty?` &nbsp;|&nbsp; + ${excludedConsumableQty.toLocaleString()} BULK MATERIALS · see page 2`:''}</div>
+    <div class="cols">${cols}</div>
+    <div class="foot">COUNTED / CONTADO — write the quantity you physically count in the yellow box · escriba la cantidad en la casilla amarilla. Source: Assets, On-Site status.</div>
+  </div>`+
+  (bulkTotal?`<div class="chk pb">
+    <div class="wm"></div>
+    <div class="banner"><div><div class="title">BULK MATERIALS · MATERIALES A GRANEL</div><div class="sub">Tracked in bulk · No por herramienta — use these quantities for restock &amp; ordering.</div></div><div class="rt"><div class="date">${md}</div><div class="onb">${bulkTotal.toLocaleString()} units · unidades</div></div></div>
+    <div class="cols">${bulkCols}</div>
+    <div class="foot">Bulk consumables — not field-counted by tool. Source: Assets (Concrete Forming Supplies, Formwork, Safety).</div>
+  </div>`:'');
+  const css=`@page{size:17in 11in;margin:9mm} *{box-sizing:border-box} html,body{background:#fff}
+   .chk{position:relative;font-family:Inter,Arial,sans-serif;color:#111;background:#fff}
+   .pb{page-break-before:always;margin-top:9mm}
+   .wm{position:absolute;inset:0;background:url('logo.png') no-repeat center 58%;background-size:44% auto;opacity:.05;filter:grayscale(1);z-index:0}
+   .banner,.total,.cols,.foot{position:relative;z-index:1}
+   .banner{display:flex;justify-content:space-between;align-items:flex-start;background:#00703C;color:#fff;padding:12px 18px;border-radius:4px}
+   .kick{font-size:9px;font-weight:700;letter-spacing:.06em}.title{font-size:24px;font-weight:800;letter-spacing:-.01em}.sub{font-size:10px;opacity:.92;margin-top:2px}
+   .rt{text-align:right}.dow{font-size:11px;font-weight:700;letter-spacing:.05em}.date{font-size:23px;font-weight:800;line-height:1.05}.onb{font-size:12px;font-weight:700;margin-top:3px}.meta{font-size:8px;opacity:.85}
+   .total{background:#f0f6f3;border:1px solid #00703C;border-left:6px solid #00703C;margin:8px 0;padding:7px 14px;font-size:10px;font-weight:600;color:#333;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+   .total b{font-size:24px;color:#00703C;margin-right:6px}.total i{color:#555;font-weight:400}
    .cols{column-count:3;column-gap:14px}
-   .cat{break-inside:avoid;border:1px solid #ccc;border-radius:4px;margin-bottom:8px;overflow:hidden}
-   .cat-h{background:#e8efe9;font-weight:700;font-size:11px;padding:4px 8px;display:flex;justify-content:space-between}
-   .ln{display:flex;align-items:center;gap:6px;padding:3px 8px;border-top:1px solid #eee;font-size:10px}
-   .lab{flex:1}.sys{width:28px;text-align:right;color:#555}.box{width:46px;height:16px;border:1px solid #999;background:#fffce8;flex-shrink:0}
+   .cat{break-inside:avoid;border:1px solid #cfd9d3;border-radius:4px;margin-bottom:9px;overflow:hidden}
+   .cat-h{background:#00703C;color:#fff;font-weight:800;font-size:10px;letter-spacing:.03em;padding:5px 9px;display:flex;justify-content:space-between;align-items:center}
+   .cat-h .ct{font-weight:700;font-size:9px;opacity:.95}
+   .ch{display:flex;align-items:center;gap:6px;padding:3px 9px;background:#eef3f0;font-size:8px;font-weight:700;color:#5a6b62;letter-spacing:.04em}
+   .ln{display:flex;align-items:center;gap:6px;padding:3px 9px;border-top:1px solid #eef0ee;font-size:10px}
+   .ln.flag{color:#a34000}
+   .lab{flex:1}.sys{width:30px;text-align:center;font-weight:700}.boxh{width:60px;text-align:center}.box{width:60px;height:16px;border:1px solid #b9b9b9;background:#fffce8;flex-shrink:0;border-radius:2px}
+   .sys2{width:56px;text-align:right;font-weight:800;color:#00522b}
+   .nid{color:#b91c1c;font-size:8px;font-weight:800}
    .foot{margin-top:8px;font-size:9px;color:#555;font-style:italic}`;
   doPrint(html,css);
 }
