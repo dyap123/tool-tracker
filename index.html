@@ -230,6 +230,7 @@ function num(v){ const n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''
 function money(n){ return '$'+ (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}); }
 function money2(n){ return '$'+ (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtDateLabel(s){ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s||''); if(!m) return s||'No date'; const d=new Date(+m[1],+m[2]-1,+m[3]); const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]; const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]; return dow+' · '+mon+' '+(+m[3])+', '+m[1]; }
 function nowMs(){ return Date.now(); }
 function assetsArr(){ return Object.entries(state.assets||{}).map(([k,v])=>({_key:k, ...v})); }
 function ordersArr(){ return Object.entries(state.orders||{}).map(([k,v])=>({_key:k, ...v})); }
@@ -1134,17 +1135,24 @@ function applyOrderSearch(){ const q=orderQuery, list=document.getElementById('o
   list.querySelectorAll('.sum-card').forEach(c=>{ c.style.display=[...c.querySelectorAll('[data-search]')].some(r=>r.style.display!=='none')?'':'none'; });
 }
 function ordersGroupHtml(arr, by){
-  const keyOf=o=> by==='brand' ? (findBrand(o.description||'')||'Unbranded') : (_categoryFor((o.description||'').toUpperCase(),'')||'Other');
+  const keyOf=o=> by==='date' ? (o.order_date||'~No date')
+               : by==='brand' ? (findBrand(o.description||'')||'Unbranded')
+               : (_categoryFor((o.description||'').toUpperCase(),'')||'Other');
   const groups={}; arr.forEach(o=>{ const k=keyOf(o); (groups[k]=groups[k]||[]).push(o); });
   const ci=x=>{ const i=CATEGORY_NAMES.indexOf(x); return i<0?999:i; };
-  const names=Object.keys(groups).sort((a,b)=> by==='brand' ? (((_brandRankMap[a]??999)-(_brandRankMap[b]??999))||a.localeCompare(b)) : (ci(a)-ci(b)||a.localeCompare(b)));
+  let names=Object.keys(groups);
+  if(by==='date') names.sort((a,b)=>{ if(a==='~No date')return 1; if(b==='~No date')return -1; return b.localeCompare(a); });  // newest first, No date last
+  else if(by==='brand') names.sort((a,b)=> ((_brandRankMap[a]??999)-(_brandRankMap[b]??999))||a.localeCompare(b));
+  else names.sort((a,b)=> ci(a)-ci(b)||a.localeCompare(b));
   if(!names.length) return emptyState('local_shipping','No orders to group.');
+  const labelOf=n=> by==='date' ? (n==='~No date'?'No date':fmtDateLabel(n)) : n;
   const selN=Object.keys(orderSel).length;
-  const bar=`<div id="orderSelBar" class="bg-surface-container border border-primary-container rounded-xl p-md mt-md flex items-center justify-between gap-sm flex-wrap" style="position:sticky;bottom:8px;z-index:20;box-shadow:0 8px 22px rgba(0,0,0,.5);${selN?'':'display:none'}"><span class="font-body-md text-on-surface"><b id="orderSelCount">${selN}</b> selected</span><div class="flex gap-sm flex-wrap"><button class="btn-primary" data-action="order-bulk-receive"><span class="material-symbols-outlined text-[18px]">where_to_vote</span>Mark Arrived → On-Site</button><button class="btn-ghost" data-action="order-bulk-clear">Clear</button></div></div>`;
+  const dateBtn=`<div class="flex items-center gap-1"><input type="date" id="orderBulkDate" class="ipt" style="width:150px;padding:4px 8px"><button class="btn-ghost" data-action="order-bulk-date"><span class="material-symbols-outlined text-[18px]">event</span>Set date</button></div>`;
+  const bar=`<div id="orderSelBar" class="bg-surface-container border border-primary-container rounded-xl p-md mt-md flex items-center justify-between gap-sm flex-wrap" style="position:sticky;bottom:8px;z-index:20;box-shadow:0 8px 22px rgba(0,0,0,.5);${selN?'':'display:none'}"><span class="font-body-md text-on-surface"><b id="orderSelCount">${selN}</b> selected</span><div class="flex gap-sm flex-wrap items-center"><button class="btn-primary" data-action="order-bulk-receive"><span class="material-symbols-outlined text-[18px]">where_to_vote</span>Mark Arrived → On-Site</button>${dateBtn}<button class="btn-ghost" data-action="order-bulk-clear">Clear</button></div></div>`;
   return `<div id="orderList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">`+names.map(n=>{
     const os=groups[n];
     return `<div class="sum-card bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
-      <div class="p-md border-b border-outline-variant bg-surface-container-low flex items-center justify-between"><span class="font-headline-md text-on-surface">${esc(n)}</span><span class="chip on">${os.length}</span></div>
+      <div class="p-md border-b border-outline-variant bg-surface-container-low flex items-center justify-between"><span class="font-headline-md text-on-surface">${esc(labelOf(n))}</span><span class="chip on">${os.length}</span></div>
       <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:300px">${os.map(o=>{
         const hay=((o.description||'')+' '+(o.primary_id||'')+' '+(o.part_no||'')+' '+(o.status||'')).toLowerCase();
         const sc={'Pending':'#fb923c','Delivered':'#4ade80','Cancelled':'#9fb0cb'}[o.status||'Pending']||'#9fb0cb';
@@ -1159,6 +1167,15 @@ var orderSel={};
 function toggleOrderSel(k,c){ if(c) orderSel[k]=true; else delete orderSel[k]; updateOrderSelBar(); }
 function updateOrderSelBar(){ const n=Object.keys(orderSel).length; const bar=document.getElementById('orderSelBar'); const c=document.getElementById('orderSelCount'); if(c)c.textContent=n; if(bar)bar.style.display=n?'':'none'; }
 function clearOrderSel(){ orderSel={}; renderCurrent(); }
+async function orderSetDate(key,d){ try{ await fb.update('orders/'+key,{order_date:d,updatedAt:nowMs()}); toast('Date updated','success'); }catch(e){ toast('Failed','error'); } }
+async function bulkOrderSetDate(){
+  const d=val('orderBulkDate'); if(!d){ toast('Pick a date first','info'); return; }
+  const keys=Object.keys(orderSel).filter(k=>state.orders[k]);
+  if(!keys.length){ toast('Select orders first','info'); return; }
+  try{ for(const k of keys){ await fb.update('orders/'+k,{order_date:d,updatedAt:nowMs()}); }
+    orderSel={}; toast(keys.length+' order(s) set to '+d,'success'); renderCurrent();
+  }catch(e){ toast('Failed: '+e.message,'error'); }
+}
 async function bulkOrderReceive(){
   const keys=Object.keys(orderSel).filter(k=>state.orders[k] && (state.orders[k].status||'')!=='Cancelled');
   if(!keys.length){ toast('Select orders first','info'); return; }
@@ -1183,7 +1200,7 @@ function renderOrders(root){
        <div id="orderDropStatus" class="mt-xs font-body-sm text-on-surface-variant"></div>
      </label>`
   + `<div class="flex gap-2 flex-wrap mb-md items-center"><div class="flex gap-1 flex-wrap">${chips}</div><div class="relative ml-auto"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input id="orderSearch" value="${esc(orderQuery)}" oninput="orderSearchInput(this.value)" placeholder="Search orders…" class="ipt pl-8" style="width:220px" autocomplete="off"></div></div>`
-  + `<div class="flex gap-1 mb-md"><button data-action="order-view" data-v="list" class="chip ${orderView==='list'?'on':''}">List</button><button data-action="order-view" data-v="category" class="chip ${orderView==='category'?'on':''}">By category</button><button data-action="order-view" data-v="brand" class="chip ${orderView==='brand'?'on':''}">By brand</button></div>`
+  + `<div class="flex gap-1 mb-md"><button data-action="order-view" data-v="list" class="chip ${orderView==='list'?'on':''}">List</button><button data-action="order-view" data-v="date" class="chip ${orderView==='date'?'on':''}">By date</button><button data-action="order-view" data-v="category" class="chip ${orderView==='category'?'on':''}">By category</button><button data-action="order-view" data-v="brand" class="chip ${orderView==='brand'?'on':''}">By brand</button></div>`
   + (filtered.length
       ? (orderView==='list' ? `<div id="orderList" class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">`+filtered.map(o=>orderCard(o)).join('')+`</div>` : ordersGroupHtml(filtered, orderView))
       : emptyState('local_shipping','No orders yet. Create one with New Order, or drop an order form above.'));
@@ -1204,7 +1221,7 @@ function orderCard(o){
       </div>
       <div class="grid grid-cols-2 gap-sm font-body-sm mb-md">
         <div><div class="lbl">Qty</div><span class="mono font-bold">${esc(o.qty||'—')}</span></div>
-        <div><div class="lbl">Ordered</div>${esc(o.order_date||'—')}</div>
+        <div><div class="lbl">Date</div><input type="date" value="${esc(o.order_date||'')}" onchange="orderSetDate('${esc(o._key)}',this.value)" class="ipt" style="padding:3px 6px;font-size:13px"></div>
       </div>
       <div class="flex gap-sm flex-wrap">
         ${st==='Pending'?`<button class="btn-primary" data-action="order-receive" data-key="${esc(o._key)}"><span class="material-symbols-outlined text-[18px]">where_to_vote</span>Mark Arrived</button>
@@ -1425,6 +1442,7 @@ function dispatchAction4(a, el){
     case 'goto-summary': assetsViewMode='summary'; setView('assets'); return true;
     case 'order-view': orderView=el.dataset.v; renderCurrent(); return true;
     case 'order-bulk-receive': bulkOrderReceive(); return true;
+    case 'order-bulk-date': bulkOrderSetDate(); return true;
     case 'order-bulk-clear': clearOrderSel(); return true;
     case 'order-receive': orderReceive(key); return true;
     case 'order-cancel': orderSetStatus(key,'Cancelled'); return true;
