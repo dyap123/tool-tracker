@@ -283,7 +283,7 @@ const BRANDS = ['DEWALT','MILWAUKEE','MAKITA','BOSCH','HILTI','METABO','RIDGID',
 const MISC_SHEET_CATEGORIES = new Set(['Concrete P&F Equipment','Concrete Pump','Rigging & Hoisting Equip']);
 const CONSUMABLE_SHEET_CATEGORIES = new Set(['Concrete Forming Supplies','Formwork']);
 const CONSUMABLE_DESC_PATTERNS = ['SHE BOLT','NUT WASHER','CATHEAD','BRACKET - DOUBLE','BRACKET - PANEL CLIP','BRACKET - FOOTING','HAIRPIN','SNAPTIE','TURNBUCKLE - FORM','BARRICADE'];
-const CATEGORY_NAMES = ['Batteries','Circular Saws','Sawzalls','Drills & Impacts','Nail Guns','Hand Tools','Vacuums','Angle Grinders','Chargers','Layout Equipment','Jobsite & Storage','Concrete, Rigging & Misc','Power Equipment'];
+const CATEGORY_NAMES = ['Batteries','Circular Saws','Sawzalls','Drills & Impacts','Nail Guns','Hand Tools','Vacuums','Angle Grinders','Chargers','Layout Equipment','Jobsite & Storage','Concrete, Rigging & Misc','Power Equipment','Bulk'];
 const BRAND_ORDER = ['DeWalt','Milwaukee','Makita','Bosch','Hilti','Metabo','Ridgid','Ryobi','Paslode','Hitachi','Hytera','Leica','Oztec','Honda','Stihl','Festool','Kobalt','Knaack','Unbranded'];
 const FLAG_UNBRANDED_IN = new Set(['Batteries','Circular Saws','Sawzalls','Drills & Impacts','Nail Guns','Angle Grinders','Chargers']);
 const NON_POWERTOOL_BATTERY_SUBS = new Set(['Radio','Data-collector']);
@@ -441,7 +441,7 @@ function classifyAssets(items){
   return {buckets, excludedConsumableQty:excluded};
 }
 // Returns [{category,total,lines:[{label,expected,flagged,tools:[{_key,item_id,description,serial,unit_cost,qty}]}]}]
-function groupForReconcile(items){
+function groupForReconcile(items, includeBulk){
   const agg={}; CATEGORY_NAMES.forEach(n=>agg[n]={});
   function place(cat,item,brand){
     const desc=(item.description||'').trim();
@@ -455,11 +455,23 @@ function groupForReconcile(items){
     const desc=(it.description||'').trim(); if(!desc) continue;
     if(qtyOf(it.qty!=null?it.qty:1)<=0) continue;
     const sheetCat=(it.category||'').trim();
-    if(CONSUMABLE_SHEET_CATEGORIES.has(sheetCat)||isConsumable(desc)) continue;
+    if(CONSUMABLE_SHEET_CATEGORIES.has(sheetCat)||isConsumable(desc)){ if(includeBulk){ const bk=desc.toUpperCase(); (agg['Bulk'][bk]=agg['Bulk'][bk]||[]).push(it); } continue; }
     place(_categoryFor(desc,sheetCat), it, findBrand(desc));
   }
   const out=[];
   for(const cat of CATEGORY_NAMES){
+    if(cat==='Bulk'){
+      const bentries=Object.entries(agg['Bulk']).map(([k,tools])=>({label:(tools[0].description||'').trim()||k, tools}));
+      bentries.sort((a,b)=> b.tools.reduce((s,t)=>s+qtyOf(t.qty!=null?t.qty:1),0) - a.tools.reduce((s,t)=>s+qtyOf(t.qty!=null?t.qty:1),0));
+      const blines=[]; let btotal=0;
+      for(const bg of bentries){
+        const expected=bg.tools.reduce((s,t)=>s+qtyOf(t.qty!=null?t.qty:1),0);
+        blines.push({label:bg.label,expected,flagged:false,tools:bg.tools.map(t=>({_key:t._key,item_id:t.item_id||'',description:t.description||'',serial:t.serial||'',unit_cost:t.unit_cost||'',qty:qtyOf(t.qty!=null?t.qty:1)}))});
+        btotal+=expected;
+      }
+      if(btotal>0) out.push({category:'Bulk',total:btotal,lines:blines});
+      continue;
+    }
     const entries=Object.entries(agg[cat]).map(([k,tools])=>{const i=k.indexOf(' ');return {brand:k.slice(0,i),sub:k.slice(i+1),tools};});
     entries.sort((a,b)=>(brandRank(a.brand)-brandRank(b.brand))||(a.sub<b.sub?-1:a.sub>b.sub?1:0));
     const lines=[]; let total=0;
@@ -759,7 +771,11 @@ function showImportReview(fileName, parsed, diff){
       </div>
       ${section('New tools','#4ade80','will be added',diff.added.map((x,i)=>impRow('added',i,x)),diff.added.length<=25)}
       ${section('Updates','#93ccff','cost / description changes',diff.updated.map((x,i)=>impRow('updated',i,x)),diff.updated.length<=25)}
-      ${section('Not in this file','#fbbf24','tick to mark Returned (off by default)',diff.removed.map((x,i)=>impRow('removed',i,x)),false)}
+      ${diff.removed.length?`<details class="mb-sm border border-outline-variant rounded overflow-hidden">
+        <summary class="flex items-center justify-between p-sm cursor-pointer select-none" style="background:#fbbf2414">
+          <span class="font-label-md" style="color:#fbbf24">Not in this file · ${diff.removed.length}</span>
+          <label class="flex items-center gap-1 font-body-sm text-on-surface-variant" onclick="event.stopPropagation()"><input type="checkbox" onchange="impReturnAll(this.checked)" class="w-4 h-4 accent-primary"> Mark all as Returned</label></summary>
+        <div class="divide-y divide-outline-variant" style="max-height:40vh;overflow-y:auto">${diff.removed.map((x,i)=>impRow('removed',i,x)).join('')}</div></details>`:''}
       <div class="flex gap-sm justify-end mt-lg items-center">
         <span class="font-body-sm text-on-surface-variant mr-auto">Untick any row you don't want.</span>
         <button class="btn-ghost" data-action="close-modal">Cancel</button>
@@ -774,7 +790,7 @@ function impRow(section,i,x){
   const dis = section==='removed' ? 'disabled' : '';
   const wasCost = section==='updated' && num(x.cur.unit_cost)!==num(a.unit_cost) ? `<span class="font-body-sm text-on-surface-variant line-through mr-1 whitespace-nowrap">${money2(num(x.cur.unit_cost))}</span>` : '';
   return `<div class="flex items-center gap-sm p-sm hover:bg-surface-container" ${a._raw?`title="${esc(a._raw)}"`:''}>
-    <input type="checkbox" ${checked} onchange="impToggle('${section}',${i},this.checked)" class="w-4 h-4 accent-primary flex-shrink-0">
+    <input type="checkbox" ${checked} ${section==='removed'?`id="imp-rm-${i}"`:''} onchange="impToggle('${section}',${i},this.checked)" class="w-4 h-4 accent-primary flex-shrink-0">
     <span class="font-bold text-primary flex-shrink-0 truncate" style="width:90px">${esc(idTag)}</span>
     <input value="${esc(a.description)}" onchange="impEdit('${section}',${i},'description',this.value)" class="flex-1 min-w-0 border border-outline-variant rounded px-2 py-1 font-body-sm" placeholder="Description" ${dis}>
     <input value="${esc(a.category)}" onchange="impEdit('${section}',${i},'category',this.value)" class="flex-shrink-0 border border-outline-variant rounded px-2 py-1 font-body-sm" style="width:110px" placeholder="Category" ${dis}>
@@ -782,6 +798,7 @@ function impRow(section,i,x){
   </div>`;
 }
 function impToggle(section,i,v){ window._importDiff[section][i]._include=v; }
+function impReturnAll(v){ const d=window._importDiff; if(!d) return; d.removed.forEach((x,i)=>{ x._include=v; const cb=document.getElementById('imp-rm-'+i); if(cb) cb.checked=v; }); }
 function impEdit(section,i,field,val){ const x=window._importDiff[section][i]; const t=(section==='removed')?x.cur:x.next; t[field]= field==='unit_cost'?num(val):val; }
 
 async function commitImport(){
@@ -1461,11 +1478,16 @@ function dispatchAction4(a, el){
 /* ---------- Summary grid (embedded as a view mode in Assets + Audits) ---------- */
 let assetsViewMode='table', auditMode='audit', summaryGroupBy='category', summaryQuery='', auditQuery='';
 function summaryGridHtml(){
-  const groups=groupForReconcile(assetsArr());          // same categorization as the foreman report
+  const allGroups=groupForReconcile(assetsArr(), true);  // includeBulk: bulk materials get their own card
+  const bulkG=allGroups.find(g=>g.category==='Bulk');
+  const groups=allGroups.filter(g=>g.category!=='Bulk');
   const fmBy={}, keyByItem={}, priceBy={};
   assetsArr().forEach(a=>{ if(a.item_id){ fmBy[a.item_id]=a.assigned_to||''; keyByItem[a.item_id]=a._key; priceBy[a.item_id]={mo:num(a.unit_cost),buy:num(a.buyout)}; } });
   const tprice=t=> priceMode==='buyout' ? ((priceBy[t.item_id]||{}).buy||0) : num(t.unit_cost);
-  if(!groups.length) return emptyState('category','No on-site tools to summarize. Import a ToolHound report first.');
+  if(!groups.length && !bulkG) return emptyState('category','No on-site tools to summarize. Import a ToolHound report first.');
+  const bulkCardHtml=()=>{ if(!bulkG) return ''; return `<div class="sum-card bg-surface-container-lowest rounded-xl overflow-hidden flex flex-col shadow-sm" style="border:1px solid #1f6b3f">
+      <div class="p-md border-b border-outline-variant" style="background:rgba(31,107,63,.16)"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">Bulk Materials</span><span class="chip on">${bulkG.total.toLocaleString()}</span></div><span class="font-body-sm text-on-surface-variant">reference only · not audited line-by-line</span></div>
+      <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:300px">${bulkG.lines.map(l=>`<div data-search="${esc((l.label||'').toLowerCase())}" class="flex items-center gap-sm px-md py-1.5 hover:bg-surface-container-low"><div class="min-w-0 truncate flex-1 font-body-sm text-on-surface">${esc(l.label)}</div><div class="flex-shrink-0 mono font-bold" style="color:#ffb690">×${l.expected.toLocaleString()}</div></div>`).join('')}</div></div>`; };
   const toggle=`<div class="flex items-center gap-2 mb-md flex-wrap"><span class="font-label-md text-on-surface-variant">Group by</span>
     <button data-action="sum-groupby" data-g="category" class="chip ${summaryGroupBy==='category'?'on':''}">Category</button>
     <button data-action="sum-groupby" data-g="brand" class="chip ${summaryGroupBy==='brand'?'on':''}">Brand</button>
@@ -1497,7 +1519,7 @@ function summaryGridHtml(){
           const ts=cats[cn].sort((a,b)=>String(a.description).localeCompare(String(b.description)));
           return `<div class="sum-sub"><div class="px-md py-1 bg-surface-container-low font-label-md text-on-surface-variant flex items-center justify-between sticky top-0"><span>${esc(cn)}</span><span>${ts.length}</span></div><div class="divide-y divide-outline-variant">${ts.map(toolRow).join('')}</div></div>`;
         }).join('')}</div></div>`;
-    }).join(''))+bar;
+    }).join('')+bulkCardHtml())+bar;
   }
   return toggle+cardWrap(groups.map(g=>{
     const tools=g.lines.flatMap(l=>l.tools).sort((a,b)=>String(a.description).localeCompare(String(b.description)));
@@ -1505,7 +1527,7 @@ function summaryGridHtml(){
     return `<div class="sum-card bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
       <div class="p-md border-b border-outline-variant bg-surface-container-low"><div class="flex items-center justify-between mb-xs"><span class="font-headline-md text-on-surface">${esc(g.category)}</span><span class="chip on">${g.total}</span></div><span class="font-body-sm text-on-surface-variant">${money(mo)}${pmSuffix()}</span></div>
       <div class="divide-y divide-outline-variant overflow-y-auto" style="max-height:240px">${tools.map(toolRow).join('')}</div></div>`;
-  }).join(''))+bar;
+  }).join('')+bulkCardHtml())+bar;
 }
 
 function renderReports(root){
