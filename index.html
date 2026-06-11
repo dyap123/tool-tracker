@@ -269,12 +269,12 @@ const CATEGORY_RULES = [
   ['Power Equipment', /BLOWER|WELDER|COMPRESSOR|\bGENERATOR\b/i],
 ];
 const HAND_TOOL_CATEGORY = 'Hand Tools';
-const BRANDS = ['DEWALT','MILWAUKEE','MAKITA','BOSCH','HILTI','METABO','RIDGID','RYOBI','PASLODE','HITACHI','HYTERA','LEICA','OZTEC','HONDA','STIHL','FESTOOL','KOBALT','KNAACK'];
+const BRANDS = ['DEWALT','MILWAUKEE','MAKITA','BOSCH','HILTI','METABO','RIDGID','RYOBI','PASLODE','HITACHI','HYTERA','LEICA','OZTEC','HONDA','STIHL','FESTOOL','KOBALT','KNAACK','BIG FOOT','SKILSAW','SKIL','SENCO','BOSTITCH'];
 const MISC_SHEET_CATEGORIES = new Set(['Concrete P&F Equipment','Concrete Pump','Rigging & Hoisting Equip']);
 const CONSUMABLE_SHEET_CATEGORIES = new Set(['Concrete Forming Supplies','Formwork']);
 const CONSUMABLE_DESC_PATTERNS = ['SHE BOLT','NUT WASHER','CATHEAD','BRACKET - DOUBLE','BRACKET - PANEL CLIP','BRACKET - FOOTING','HAIRPIN','SNAPTIE','TURNBUCKLE - FORM','BARRICADE'];
 const CATEGORY_NAMES = ['Batteries','Circular Saws','Sawzalls','Drills & Impacts','Nail Guns','Hand Tools','Vacuums','Angle Grinders','Chargers','Layout Equipment','Jobsite & Storage','Concrete, Rigging & Misc','Power Equipment','Bulk'];
-const BRAND_ORDER = ['DeWalt','Milwaukee','Makita','Bosch','Hilti','Metabo','Ridgid','Ryobi','Paslode','Hitachi','Hytera','Leica','Oztec','Honda','Stihl','Festool','Kobalt','Knaack','Unbranded'];
+const BRAND_ORDER = ['DeWalt','Milwaukee','Makita','Bosch','Hilti','Metabo','Ridgid','Ryobi','Paslode','Hitachi','Hytera','Leica','Oztec','Honda','Stihl','Festool','Kobalt','Knaack','Big Foot','Skilsaw','Skil','Senco','Bostitch','Unbranded'];
 const FLAG_UNBRANDED_IN = new Set(['Batteries','Circular Saws','Sawzalls','Drills & Impacts','Nail Guns','Angle Grinders','Chargers']);
 const NON_POWERTOOL_BATTERY_SUBS = new Set(['Radio','Data-collector']);
 const _brandRankMap = (()=>{ const m={}; BRAND_ORDER.forEach((b,i)=>m[b]=i); return m; })();
@@ -283,7 +283,7 @@ function brandRank(b){ return (b in _brandRankMap)?_brandRankMap[b]:999; }
 function qtyOf(v){ const n=parseInt(parseFloat(v)); return isNaN(n)?0:n; }
 function findBrand(desc){
   const up=(desc||'').toUpperCase();
-  for(const b of BRANDS){ if(new RegExp('\\b'+b+'\\b').test(up)) return b==='DEWALT'?'DeWalt':(b.charAt(0)+b.slice(1).toLowerCase()); }
+  for(const b of BRANDS){ if(new RegExp('\\b'+b+'\\b').test(up)) return b==='DEWALT'?'DeWalt':(b==='SKILSAW'?'Skilsaw':b.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())); }
   return null;
 }
 function isConsumable(desc){ const up=(desc||'').toUpperCase(); return CONSUMABLE_DESC_PATTERNS.some(p=>new RegExp(p).test(up)); }
