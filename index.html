@@ -205,12 +205,28 @@ function startListeners(){
   fb.listen('foremen', v => { state.foremen = v||{}; refreshForemanList(); });
   fb.listen('counters', v => { state.counters = v||{}; onData(); });
   fb.listen('config', v => {
-    state.config = v||{};
+    state.config = v||{}; state._configLoaded=true;
     const np=document.getElementById('navProject'); if(np) np.textContent = state.config.projectName || 'LACC Project';
+    maybeResetVerifications();
   });
 }
+// Auto-reset all verifications every two weeks on Monday 06:00 (runs on app load past the due time).
+let _verifyResetChecked=false;
+function nextMonday6am(fromMs){ const d=new Date(fromMs); d.setHours(6,0,0,0); while(d.getDay()!==1 || d.getTime()<fromMs) d.setDate(d.getDate()+1); return d.getTime(); }
+async function maybeResetVerifications(){
+  if(_verifyResetChecked || !state.ready || !state._configLoaded) return;
+  _verifyResetChecked=true;
+  let next=Number((state.config||{}).verifyResetNext)||0;
+  if(!next){ try{ await fb.update('config',{verifyResetNext:nextMonday6am(nowMs())}); }catch(e){} return; }
+  if(nowMs()>=next){
+    const u={}; assetsArr().forEach(a=>{ if(a.verified){ u[a._key+'/verified']=''; u[a._key+'/verifiedAt']=null; } });
+    let nx=next; const FT=14*86400000; while(nowMs()>=nx) nx+=FT;
+    try{ if(Object.keys(u).length) await fb.update('assets',u); await fb.update('config',{verifyResetNext:nx, lastVerifyReset:nowMs()}); }catch(e){}
+    if(Object.keys(u).length) toast('Verifications reset for the new two-week cycle','info');
+  }
+}
 let _renderQueued=false;
-function onData(){ state.ready=true; if(_renderQueued) return; _renderQueued=true; requestAnimationFrame(()=>{_renderQueued=false; renderCurrent();}); }
+function onData(){ state.ready=true; maybeResetVerifications(); if(_renderQueued) return; _renderQueued=true; requestAnimationFrame(()=>{_renderQueued=false; renderCurrent();}); }
 
 /* ============================================================
    Helpers
@@ -1191,7 +1207,7 @@ async function bulkOrderReceive(){
   const keys=Object.keys(orderSel).filter(k=>state.orders[k] && (state.orders[k].status||'')!=='Cancelled');
   if(!keys.length){ toast('Select orders first','info'); return; }
   const aUpd={};
-  keys.forEach(k=>{ const o=state.orders[k]; const a={...blankAsset(), item_id:o.primary_id||'', part_no:o.part_no||'', description:o.description||'', qty:parseInt(o.qty)||1, po:o.po||'', status:'On Site', source:'order', issued_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs()}; aUpd[assetKey(a.item_id,a.part_no,a.description)]=a; });
+  keys.forEach(k=>{ const o=state.orders[k]; const a={...blankAsset(), item_id:o.primary_id||'', part_no:o.part_no||'', description:o.description||'', qty:parseInt(o.qty)||1, po:o.po||'', status:'On Site', verified:'Yes', verifiedAt:nowMs(), source:'order', issued_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs()}; aUpd[assetKey(a.item_id,a.part_no,a.description)]=a; });
   try{ await fb.update('assets', aUpd);
     for(const k of keys){ await fb.update('orders/'+k,{status:'Delivered',updatedAt:nowMs()}); }
     orderSel={}; toast(keys.length+' arrived & added to inventory','success'); renderCurrent();
@@ -1362,7 +1378,7 @@ async function commitOrders(){
 async function orderSetStatus(key,status){ try{ await fb.update('orders/'+key,{status,updatedAt:nowMs()}); toast('Order '+status,'success'); }catch(e){ toast('Failed','error'); } }
 async function orderToInventory(key){
   const o=state.orders[key]; if(!o) return;
-  const a={...blankAsset(), item_id:o.primary_id||'', part_no:o.part_no||'', description:o.description||'', unit_cost:0, qty:parseInt(o.qty)||1, po:o.po||'', status:'On Site', source:'order', issued_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs()};
+  const a={...blankAsset(), item_id:o.primary_id||'', part_no:o.part_no||'', description:o.description||'', unit_cost:0, qty:parseInt(o.qty)||1, po:o.po||'', status:'On Site', verified:'Yes', verifiedAt:nowMs(), source:'order', issued_date:todayStr(), createdAt:nowMs(), updatedAt:nowMs()};
   const k=assetKey(a.item_id,a.part_no,a.description);
   try{ await fb.update('assets',{[k]:a}); toast('Added to inventory','success'); }catch(e){ toast('Failed','error'); }
 }
