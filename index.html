@@ -136,6 +136,10 @@
     </div>
     <button onclick="toggleSidebar()" class="text-on-surface-variant hover:text-primary p-1 flex-shrink-0" title="Hide sidebar"><span class="material-symbols-outlined">chevron_left</span></button>
   </div>
+  <button id="projSwitchBtn" data-action="proj-menu" class="flex items-center justify-between w-full gap-sm px-sm py-2 mb-sm rounded-lg bg-surface-container border border-outline-variant hover:bg-surface-container-high transition-colors min-h-[42px]" title="Switch project">
+    <span class="flex items-center gap-sm min-w-0"><span class="material-symbols-outlined text-primary text-[18px]">workspaces</span><span id="projSwitchName" class="font-label-md text-on-surface truncate">Project</span></span>
+    <span class="material-symbols-outlined text-on-surface-variant text-[18px]">unfold_more</span>
+  </button>
   <ul class="flex flex-col gap-xs flex-1" id="navList">
     <li><a class="navlink" data-view="dashboard" href="#"><span class="material-symbols-outlined" data-icon="dashboard">dashboard</span><span class="font-label-md">Dashboard</span></a></li>
     <li><a class="navlink" data-view="assets" href="#"><span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span><span class="font-label-md">Assets</span></a></li>
@@ -153,6 +157,7 @@
   </button>
 </nav>
 <button id="navOpenBtn" onclick="toggleSidebar()" class="fixed top-3 left-3 z-50 bg-primary-container text-white rounded-full w-11 h-11 items-center justify-center shadow-lg" title="Show sidebar"><span class="material-symbols-outlined">menu</span></button>
+<button id="projSwitchMobile" data-action="proj-menu" class="md:hidden fixed top-3 right-3 z-50 flex items-center gap-1 bg-surface-container border border-outline-variant text-on-surface rounded-full px-3 h-11 font-label-md shadow-lg" title="Switch project"><span class="material-symbols-outlined text-primary text-[18px]">workspaces</span><span id="projSwitchNameMobile" class="truncate max-w-[110px]">Project</span><span class="material-symbols-outlined text-on-surface-variant text-[16px]">unfold_more</span></button>
 
 <!-- Main -->
 <main id="mainArea" class="flex-1 flex flex-col h-full overflow-y-auto mt-16 md:mt-0 md:ml-64 p-margin-mobile md:p-margin-desktop bg-surface pb-24 md:pb-margin-desktop">
@@ -175,21 +180,31 @@
 /* ============================================================
    Firebase bridge (RTDB compat) — namespaced
    ============================================================ */
-const NS = 'tool-tracker'; // production namespace (use 'tool-tracker-dev' for testing)
+const ROOT = 'tool-tracker';          // app root — LACC's legacy data lives directly here
+const META = ROOT+'/_meta/projects';  // project registry (project-independent path)
+let activeNS = ROOT;                   // Firebase namespace of the currently-selected project
 try { if(!firebase.apps.length) firebase.initializeApp({databaseURL:'https://gen-lang-client-0119642855-default-rtdb.firebaseio.com'}); }
 catch(e){ console.error('Firebase init failed', e); }
 const db = firebase.database();
 window.fb = {
-  listen:(p,cb)=>db.ref(NS+'/'+p).on('value',s=>cb(s.val())),
-  set:(p,d)=>db.ref(NS+'/'+p).set(d),
-  update:(p,d)=>db.ref(NS+'/'+p).update(d),
-  remove:(p)=>db.ref(NS+'/'+p).remove(),
-  push:(p,d)=>db.ref(NS+'/'+p).push(d),
-  get:(p)=>db.ref(NS+'/'+p).once('value').then(s=>s.val()),
-  inc:(p,by)=>db.ref(NS+'/'+p).transaction(v=>(v||0)+by),
-  max:(p,v)=>db.ref(NS+'/'+p).transaction(c=>Math.max(c||0,v)),
+  listen:(p,cb)=>{ const r=db.ref(activeNS+'/'+p); r.on('value',s=>cb(s.val())); return r; },
+  set:(p,d)=>db.ref(activeNS+'/'+p).set(d),
+  update:(p,d)=>db.ref(activeNS+'/'+p).update(d),
+  remove:(p)=>db.ref(activeNS+'/'+p).remove(),
+  push:(p,d)=>db.ref(activeNS+'/'+p).push(d),
+  get:(p)=>db.ref(activeNS+'/'+p).once('value').then(s=>s.val()),
+  inc:(p,by)=>db.ref(activeNS+'/'+p).transaction(v=>(v||0)+by),
+  max:(p,v)=>db.ref(activeNS+'/'+p).transaction(c=>Math.max(c||0,v)),
   rootGet:(p)=>db.ref(p).once('value').then(s=>s.val()),
-  rootSet:(p,d)=>db.ref(p).set(d)
+  rootSet:(p,d)=>db.ref(p).set(d),
+  // --- project registry (fixed path, independent of the active project) ---
+  metaListen:(cb)=>db.ref(META).on('value',s=>cb(s.val())),
+  metaGet:()=>db.ref(META).once('value').then(s=>s.val()),
+  metaUpdate:(d)=>db.ref(META).update(d),
+  metaRemove:(id)=>db.ref(META+'/'+id).remove(),
+  // --- raw per-namespace writes (used when seeding/removing another project) ---
+  nsUpdate:(ns,p,d)=>db.ref(ns+'/'+p).update(d),
+  nsRemove:(ns)=>db.ref(ns).remove()
 };
 
 /* ============================================================
@@ -198,17 +213,153 @@ window.fb = {
 const state = { assets:{}, orders:{}, lostLog:{}, foremen:{}, crewForemen:[], config:{}, counters:{}, ready:false };
 let currentView = 'dashboard';
 
+/* ---- Multi-project ---- */
+let projects = {};            // registry: { id: {name, ns, attendanceNs, createdAt} }
+let activeProject = 'lacc';   // currently-selected project id
+let _activeRefs = [];         // live Firebase refs for the active project (for teardown)
+
 function startListeners(){
-  fb.listen('assets', v => { state.assets = v||{}; onData(); });
-  fb.listen('orders', v => { state.orders = v||{}; onData(); });
-  fb.listen('lostLog', v => { state.lostLog = v||{}; onData(); });
-  fb.listen('foremen', v => { state.foremen = v||{}; refreshForemanList(); });
-  fb.listen('counters', v => { state.counters = v||{}; onData(); });
-  fb.listen('config', v => {
+  stopListeners();
+  _activeRefs.push(fb.listen('assets', v => { state.assets = v||{}; onData(); }));
+  _activeRefs.push(fb.listen('orders', v => { state.orders = v||{}; onData(); }));
+  _activeRefs.push(fb.listen('lostLog', v => { state.lostLog = v||{}; onData(); }));
+  _activeRefs.push(fb.listen('foremen', v => { state.foremen = v||{}; refreshForemanList(); }));
+  _activeRefs.push(fb.listen('counters', v => { state.counters = v||{}; onData(); }));
+  _activeRefs.push(fb.listen('config', v => {
     state.config = v||{}; state._configLoaded=true;
     const np=document.getElementById('navProject'); if(np) np.textContent = state.config.projectName || 'LACC Project';
     maybeResetVerifications();
-  });
+  }));
+}
+function stopListeners(){ _activeRefs.forEach(r=>{ try{ r.off(); }catch(e){} }); _activeRefs=[]; }
+
+// Namespaces are deterministic from the project id (LACC keeps the legacy root).
+function nsForId(id){ return (!id || id==='lacc') ? ROOT : ROOT+'/p/'+id; }
+
+// Point the whole app at a project: detach old listeners, reset state, re-attach.
+function attachProject(id){
+  stopListeners();
+  activeProject = id;
+  activeNS = (projects[id] && projects[id].ns) || nsForId(id);
+  try{ localStorage.setItem('activeProject', id); }catch(e){}
+  // Reset per-project data in place (closures hold the same `state` object identity).
+  state.assets={}; state.orders={}; state.lostLog={}; state.foremen={}; state.counters={}; state.config={};
+  state.crewForemen=[]; state._configLoaded=false; _verifyResetChecked=false;
+  startListeners();
+  loadCrewForemen();
+  renderProjectSwitcher();
+  renderCurrent();
+}
+// User-facing switch (no-op if already active or unknown).
+function switchProject(id){
+  if(!projects[id] || id===activeProject){ renderProjectSwitcher(); return; }
+  attachProject(id);
+}
+
+// Update the switcher button labels (desktop + mobile) from the registry.
+function renderProjectSwitcher(){
+  const name=(projects[activeProject]&&projects[activeProject].name)||'Project';
+  const a=document.getElementById('projSwitchName'); if(a) a.textContent=name;
+  const b=document.getElementById('projSwitchNameMobile'); if(b) b.textContent=name;
+}
+
+// Modal project picker — switch (open to all) + rename / delete / new (PIN-gated).
+function openProjectMenu(){
+  const ids=Object.keys(projects).sort((x,y)=>((projects[x].createdAt||0)-(projects[y].createdAt||0)));
+  const rows=ids.map(id=>{
+    const p=projects[id], active=id===activeProject;
+    const canDelete = id!=='lacc' && p.ns!==ROOT && ids.length>1;
+    return `<div class="flex items-center gap-1 rounded-lg ${active?'bg-secondary-container':''}">
+      <button data-action="proj-switch" data-pid="${esc(id)}" class="flex items-center gap-sm flex-1 min-w-0 px-md py-3 text-left">
+        <span class="material-symbols-outlined text-[20px] ${active?'text-on-secondary-container':'text-on-surface-variant'}">${active?'radio_button_checked':'radio_button_unchecked'}</span>
+        <span class="font-label-md truncate ${active?'text-on-secondary-container':'text-on-surface'}">${esc(p.name||id)}</span>
+      </button>
+      <button data-action="proj-rename" data-pid="${esc(id)}" class="p-2 text-on-surface-variant hover:text-primary" title="Rename"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+      ${canDelete?`<button data-action="proj-delete" data-pid="${esc(id)}" class="p-2 text-on-surface-variant hover:text-error" title="Delete"><span class="material-symbols-outlined text-[18px]">delete</span></button>`:''}
+    </div>`;
+  }).join('');
+  modal(modalCard(`
+    <div class="p-lg">
+      <div class="flex justify-between items-center mb-sm"><h3 class="font-headline-md text-on-surface">Projects</h3>
+        <button data-action="close-modal" class="text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined">close</span></button></div>
+      <p class="font-body-sm text-on-surface-variant mb-md">Each project keeps its own separate inventory, foremen, orders and audits.</p>
+      <div class="flex flex-col gap-1 mb-md">${rows}</div>
+      <button data-action="proj-new" class="btn-primary w-full"><span class="material-symbols-outlined text-[18px]">add</span> New Project</button>
+    </div>`,'max-w-md'));
+}
+
+async function newProjectPrompt(){
+  if(!await requirePin()) return;
+  modal(modalCard(`
+    <div class="p-lg">
+      <h3 class="font-headline-md text-on-surface mb-sm">New Project</h3>
+      <p class="font-body-sm text-on-surface-variant mb-md">Starts empty — import ToolHound data or scan assets to fill it.</p>
+      <input id="newProjName" class="w-full border border-outline-variant rounded p-sm mb-md" placeholder="Project name (e.g. Peak)" autofocus/>
+      <div class="flex gap-sm justify-end">
+        <button class="px-md py-2 border border-outline-variant rounded font-label-md" data-action="close-modal">Cancel</button>
+        <button class="px-md py-2 bg-primary text-on-primary rounded font-label-md" data-action="proj-create">Create</button>
+      </div>
+    </div>`,'max-w-sm'));
+  const inp=document.getElementById('newProjName'); inp.focus();
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') document.querySelector('[data-action="proj-create"]').click(); });
+}
+async function createProject(){
+  const name=(document.getElementById('newProjName').value||'').trim();
+  if(!name){ toast('Enter a project name','info'); return; }
+  let base=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40) || 'project';
+  let id=base, n=2; while(projects[id]) id=base+'-'+(n++);
+  const ns=ROOT+'/p/'+id, entry={ name, ns, createdAt:nowMs() };
+  try{
+    await fb.metaUpdate({[id]:entry});
+    await fb.nsUpdate(ns,'config',{ projectName:name, pin:effectivePin(), createdAt:nowMs() });
+    projects[id]=entry; closeModal();
+    toast('Project "'+name+'" created','success');
+    switchProject(id);
+  }catch(e){ console.error(e); toast('Could not create project','error'); }
+}
+
+async function renameProjectPrompt(id){
+  if(!projects[id] || !await requirePin()) return;
+  const cur=projects[id].name||id;
+  modal(modalCard(`
+    <div class="p-lg">
+      <h3 class="font-headline-md text-on-surface mb-sm">Rename Project</h3>
+      <input id="renProjName" class="w-full border border-outline-variant rounded p-sm mb-md" value="${esc(cur)}" autofocus/>
+      <div class="flex gap-sm justify-end">
+        <button class="px-md py-2 border border-outline-variant rounded font-label-md" data-action="close-modal">Cancel</button>
+        <button class="px-md py-2 bg-primary text-on-primary rounded font-label-md" data-action="proj-rename-save" data-pid="${esc(id)}">Save</button>
+      </div>
+    </div>`,'max-w-sm'));
+  const inp=document.getElementById('renProjName'); inp.focus(); inp.select();
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') document.querySelector('[data-action="proj-rename-save"]').click(); });
+}
+async function saveRenameProject(id){
+  if(!projects[id]) return;
+  const name=(document.getElementById('renProjName').value||'').trim();
+  if(!name){ toast('Enter a name','info'); return; }
+  try{
+    await fb.metaUpdate({[id+'/name']:name});
+    await fb.nsUpdate(projects[id].ns,'config',{projectName:name});
+    projects[id].name=name; closeModal(); renderProjectSwitcher();
+    if(id===activeProject) renderCurrent();
+    toast('Renamed','success');
+  }catch(e){ toast('Rename failed','error'); }
+}
+
+async function deleteProjectPrompt(id){
+  const p=projects[id]; if(!p) return;
+  if(id==='lacc' || p.ns===ROOT){ toast("The default project can't be deleted",'info'); return; }
+  if(Object.keys(projects).length<=1){ toast("Can't delete the only project",'info'); return; }
+  if(!await requirePin()) return;
+  if(!confirm('Delete project "'+(p.name||id)+'" and ALL its tools, orders and audits? This cannot be undone.')) return;
+  try{
+    await fb.nsRemove(p.ns);     // remove the project's data subtree (tool-tracker/p/{id})
+    await fb.metaRemove(id);     // remove the registry entry
+    delete projects[id]; closeModal();
+    toast('Project deleted','success');
+    if(activeProject===id){ switchProject(Object.keys(projects)[0]||'lacc'); }
+    else renderProjectSwitcher();
+  }catch(e){ console.error(e); toast('Delete failed','error'); }
 }
 // Auto-reset all verifications every two weeks on Monday 06:00 (runs on app load past the due time).
 let _verifyResetChecked=false;
@@ -999,7 +1150,10 @@ async function reassignTool(key, fm){ const a=state.assets[key]; if(!a) return; 
 // across both apps (this is what makes "link a foreman's inventory to their app" work).
 async function loadCrewForemen(){
   try{
-    const fa = (typeof fb.rootGet==='function' ? await fb.rootGet('foreman-attendance/foremen') : null) || {};
+    // Only projects that opt in (config.attendanceNs) borrow a sibling app's crew roster;
+    // others use only their own per-project foremen node, keeping crews separate.
+    const attNs = (projects[activeProject]||{}).attendanceNs;
+    const fa = (attNs && typeof fb.rootGet==='function' ? await fb.rootGet(attNs+'/foremen') : null) || {};
     const seen=new Set(), list=[];
     [...Object.values(fa), ...Object.values(state.foremen||{})].forEach(f=>{
       const n=((f&&f.name)||'').trim(); if(!n || f.active===false) return;
@@ -1773,7 +1927,15 @@ function exportLostXlsx(){ const rows=lostArr().sort((a,b)=>(b.at||0)-(a.at||0))
 /* ---------- Phase-5 dispatch ---------- */
 function dispatchAction5(a, el){
   const key=el&&el.dataset?el.dataset.key:'';
+  const pid=el&&el.dataset?el.dataset.pid:'';
   switch(a){
+    case 'proj-menu': openProjectMenu(); return true;
+    case 'proj-switch': switchProject(pid); closeModal(); return true;
+    case 'proj-new': newProjectPrompt(); return true;
+    case 'proj-create': createProject(); return true;
+    case 'proj-rename': renameProjectPrompt(pid); return true;
+    case 'proj-rename-save': saveRenameProject(pid); return true;
+    case 'proj-delete': deleteProjectPrompt(pid); return true;
     case 'print-checklist': printChecklist(); return true;
     case 'print-summary': printSummary(); return true;
     case 'lost-tab': lostTab=el.dataset.t; lostSel={}; renderCurrent(); return true;
@@ -1820,10 +1982,44 @@ function dispatchAction(a, el, e){
    Boot
    ============================================================ */
 try{ if(localStorage.getItem('navCollapsed')==='1') document.body.classList.add('nav-collapsed'); }catch(e){}
+initProjects();          // synchronous — pick active project + derive namespace (no Firebase wait)
 startListeners();
 loadCrewForemen();
 markNav();
+renderProjectSwitcher();
 window.addEventListener('hashchange',()=>{ const v=location.hash.replace('#',''); if(VIEWS[v]&&v!==currentView) setView(v); });
 setView(VIEWS[location.hash.replace('#','')]?location.hash.replace('#',''):'dashboard');
+loadRegistry();          // async — load/seed the registry, keep the switcher live
+
+// Synchronous: choose the active project from localStorage and derive its namespace,
+// so the UI renders immediately without waiting on Firebase.
+function initProjects(){
+  let id='lacc';
+  try{ const s=localStorage.getItem('activeProject'); if(s) id=s; }catch(e){}
+  activeProject=id; activeNS=nsForId(id);
+  // Placeholder so the switcher shows a label before the real registry arrives.
+  projects={ [id]: { name:(id==='lacc'?'LACC Project':id), ns:activeNS } };
+}
+
+// Async: load the registry (seed default LACC on first run), reconcile the active
+// project, and keep the switcher in sync across devices.
+async function loadRegistry(){
+  let reg=null;
+  try{ reg = await fb.metaGet(); }catch(e){}
+  if(!reg || !Object.keys(reg).length){
+    reg = { lacc: { name:'LACC Project', ns:ROOT, attendanceNs:'foreman-attendance', createdAt:nowMs() } };
+    try{ await fb.metaUpdate(reg); }catch(e){}
+  }
+  projects = reg;
+  if(!projects[activeProject]){ attachProject(Object.keys(projects)[0]||'lacc'); }
+  else if((projects[activeProject].ns||activeNS)!==activeNS){ attachProject(activeProject); } // ns differed from derived
+  else { renderProjectSwitcher(); loadCrewForemen(); }   // refresh label + crew (attendanceNs now known)
+  fb.metaListen(v=>{
+    if(!v) return;
+    projects=v;
+    if(!projects[activeProject]) attachProject(Object.keys(projects)[0]||'lacc');
+    else renderProjectSwitcher();
+  });
+}
 </script>
 </body></html>
