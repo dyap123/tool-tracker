@@ -1705,6 +1705,7 @@ function renderReports(root){
   const {buckets,excludedConsumableQty}=classifyAssets(assetsArr());
   const visible=CATEGORY_NAMES.filter(n=>buckets[n].total>0);
   const total=visible.reduce((s,n)=>s+buckets[n].total,0);
+  const verifiedN=onsite.filter(a=>(a.verified||'')==='Yes').length, notVerifiedN=onsite.length-verifiedN;
   root.innerHTML = pageHeader('Foreman Reports', total+' tools on site across '+visible.length+' categories'+(excludedConsumableQty?' · +'+excludedConsumableQty+' bulk':''),'')
   + `<label id="reportsDrop" class="flex flex-col items-center justify-center border-2 border-dashed border-outline-variant rounded-lg p-lg mb-gutter cursor-pointer hover:bg-surface-container transition-all">
        <div class="flex items-center gap-sm mb-xs"><span class="material-symbols-outlined text-secondary text-[32px]">document_scanner</span><span class="font-headline-md text-on-surface">Drop a ToolHound invoice or asset export</span></div>
@@ -1723,6 +1724,13 @@ function renderReports(root){
         <p class="font-body-md text-on-surface-variant mb-md">Filled asset list grouped by category with status + signature lines, for the record.</p>
         <div class="flex gap-sm flex-wrap"><button class="btn-primary" data-action="print-summary"><span class="material-symbols-outlined text-[18px]">print</span>Generate Summary</button>
         <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button></div>
+      </div>
+      <div class="bg-surface-container-lowest border border-outline-variant rounded p-lg">
+        <div class="flex items-center gap-sm mb-sm"><span class="material-symbols-outlined text-[28px]" style="color:#22c55e">assignment_return</span><h3 class="font-headline-md text-on-surface">Return &amp; Buy-out / Lost Forms</h3></div>
+        <p class="font-body-md text-on-surface-variant mb-md">Splits on-site tools by audit status: <b style="color:#22c55e">Verified</b> → return form, <b style="color:#ffb4ab">Not verified</b> → buy-out / lost form. Verify tools in <b>Audits</b> first.</p>
+        <div class="flex gap-sm flex-wrap"><button class="btn-primary" data-action="report-returnbuyout-pdf"><span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>Generate PDF</button>
+        <button class="btn-ghost" data-action="report-returnbuyout-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button></div>
+        <div class="font-label-sm text-on-surface-variant mt-sm"><span style="color:#22c55e">${verifiedN} verified</span> · <span style="color:#ffb4ab">${notVerifiedN} not verified</span></div>
       </div>
     </div>`;
   const rdz=document.getElementById('reportsDrop');
@@ -1928,6 +1936,59 @@ async function buildOnSiteSummaryPdf(){
 function exportLostXlsx(){ const rows=lostArr().sort((a,b)=>(b.at||0)-(a.at||0)).map(e=>({Date:e.date,'Item ID':e.item_id,Serial:e.serial,Description:e.description,Category:e.category,'Est. Value':num(e.unit_cost),'Marked By':e.markedBy}));
   if(!rows.length){ toast('No lost tools','info'); return; } exportXlsx(rows,'Lost','Lost Tools '+todayStr()+'.xlsx'); }
 
+/* ---------- Return / Buy-out split (verified vs not-verified) ----------
+   On-site assets confirmed in an audit (verified='Yes') go on the RETURN form;
+   everything else still on site (unverified or Missing) goes on the BUY-OUT / LOST form. */
+function returnBuyoutLists(){
+  const on=assetsArr().filter(onSite);
+  const sortFn=(a,b)=>String(a.category).localeCompare(String(b.category))||String(a.item_id).localeCompare(String(b.item_id));
+  return {
+    ret: on.filter(a=>(a.verified||'')==='Yes').sort(sortFn),
+    buy: on.filter(a=>(a.verified||'')!=='Yes').sort(sortFn)
+  };
+}
+async function buildReturnBuyoutPdf(){
+  const {ret,buy}=returnBuyoutLists();
+  if(!ret.length && !buy.length){ toast('No on-site tools','info'); return; }
+  await ensureJsPDF();
+  const { jsPDF }=window.jspdf; const doc=new jsPDF({orientation:'portrait',unit:'pt',format:'letter'});
+  const W=doc.internal.pageSize.getWidth();
+  const proj=state.config.projectName||'LACC PROJECT';
+  const row=a=>[a.item_id||a.part_no||'—', a.description||'', a.category||'', a.serial||'', num(a.unit_cost)?money2(a.unit_cost):'', num(a.buyout)?money2(a.buyout):''];
+  function section(title, list, color, startY){
+    const val=list.reduce((s,a)=>s+num(a.buyout||a.unit_cost),0);
+    doc.setFillColor(...color); doc.rect(0,startY,W,30,'F');
+    doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(12);
+    doc.text(title,32,startY+20); doc.setFontSize(9); doc.text(list.length+' tools',W-32,startY+20,{align:'right'});
+    doc.autoTable({ startY:startY+38, head:[['Item ID','Description','Category','Serial','$/mo','Buyout']],
+      body:list.length?list.map(row):[['—','(none)','','','','']],
+      foot:[['','','','','TOTAL',money2(val)]],
+      styles:{fontSize:8,cellPadding:3}, headStyles:{fillColor:color}, footStyles:{fillColor:[238,238,238],textColor:color,fontStyle:'bold'},
+      columnStyles:{4:{halign:'right'},5:{halign:'right'}}, margin:{left:32,right:32} });
+    return doc.lastAutoTable.finalY;
+  }
+  doc.setFillColor(0,82,43); doc.rect(0,0,W,52,'F'); doc.setTextColor(255); doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.text('RETURN & BUY-OUT / LOST',32,30); doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.text('WEBCOR BUILDERS · '+proj+' · '+new Date().toLocaleDateString(),32,44);
+  let y=section('RETURN — verified on site',ret,[34,139,87],68);
+  if(y>660){ doc.addPage(); y=40; }
+  section('BUY-OUT / LOST — not verified',buy,[185,28,28],y+24);
+  doc.save('Return & Buyout '+proj.replace(/[^\w]+/g,'_')+' '+todayStr()+'.pdf');
+}
+function exportReturnBuyoutXlsx(){
+  const {ret,buy}=returnBuyoutLists();
+  if(!ret.length && !buy.length){ toast('No on-site tools','info'); return; }
+  const map=a=>({ 'Item ID':a.item_id,'Serial':a.serial,'Description':a.description,'Category':a.category,'$/mo':num(a.unit_cost),'Buyout':num(a.buyout),'Assigned To':a.assigned_to,'Qty':a.qty });
+  ensureXLSX().then(()=>{
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(ret.map(map)),'Return (verified)');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(buy.map(map)),'Buyout-Lost (not verif)');
+    const out=XLSX.write(wb,{type:'array',bookType:'xlsx'});
+    const proj=(state.config.projectName||'LACC').replace(/[^\w]+/g,'_');
+    shareBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'Return & Buyout '+proj+' '+todayStr()+'.xlsx');
+  });
+}
+
 /* ---------- Phase-5 dispatch ---------- */
 function dispatchAction5(a, el){
   const key=el&&el.dataset?el.dataset.key:'';
@@ -1942,6 +2003,8 @@ function dispatchAction5(a, el){
     case 'proj-delete': deleteProjectPrompt(pid); return true;
     case 'print-checklist': printChecklist(); return true;
     case 'print-summary': printSummary(); return true;
+    case 'report-returnbuyout-pdf': buildReturnBuyoutPdf(); return true;
+    case 'report-returnbuyout-xlsx': exportReturnBuyoutXlsx(); return true;
     case 'lost-tab': lostTab=el.dataset.t; lostSel={}; renderCurrent(); return true;
     case 'lost-report': buildLostReportPdf(); return true;
     case 'export-lost-xlsx': exportLostXlsx(); return true;
