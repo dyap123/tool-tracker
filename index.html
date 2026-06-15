@@ -118,8 +118,13 @@
     <span class="material-symbols-outlined text-primary" data-icon="pets">pets</span>
     <span class="font-headline-lg font-black tracking-tight text-primary">YapHound</span>
   </div>
-  <div class="flex items-center gap-md">
-    <button class="text-primary p-xs rounded" data-action="open-import"><span class="material-symbols-outlined">upload_file</span></button>
+  <div class="flex items-center gap-sm min-w-0">
+    <button data-action="proj-menu" class="flex items-center gap-1 pl-2 pr-1.5 h-9 rounded-full bg-surface-container border border-outline-variant text-on-surface min-w-0" title="Switch project">
+      <span class="material-symbols-outlined text-primary text-[18px]">workspaces</span>
+      <span id="projSwitchNameMobile" class="font-label-md truncate max-w-[84px]">Project</span>
+      <span class="material-symbols-outlined text-on-surface-variant text-[16px] flex-shrink-0">unfold_more</span>
+    </button>
+    <button class="text-primary p-xs rounded flex-shrink-0" data-action="open-import"><span class="material-symbols-outlined">upload_file</span></button>
   </div>
 </header>
 
@@ -157,7 +162,6 @@
   </button>
 </nav>
 <button id="navOpenBtn" onclick="toggleSidebar()" class="fixed top-3 left-3 z-50 bg-primary-container text-white rounded-full w-11 h-11 items-center justify-center shadow-lg" title="Show sidebar"><span class="material-symbols-outlined">menu</span></button>
-<button id="projSwitchMobile" data-action="proj-menu" class="md:hidden fixed top-3 right-3 z-50 flex items-center gap-1 bg-surface-container border border-outline-variant text-on-surface rounded-full px-3 h-11 font-label-md shadow-lg" title="Switch project"><span class="material-symbols-outlined text-primary text-[18px]">workspaces</span><span id="projSwitchNameMobile" class="truncate max-w-[110px]">Project</span><span class="material-symbols-outlined text-on-surface-variant text-[16px]">unfold_more</span></button>
 
 <!-- Main -->
 <main id="mainArea" class="flex-1 flex flex-col h-full overflow-y-auto mt-16 md:mt-0 md:ml-64 p-margin-mobile md:p-margin-desktop bg-surface pb-24 md:pb-margin-desktop">
