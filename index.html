@@ -1086,8 +1086,8 @@ function renderAssets(root){
   const fmOpts=['<option value="">All foremen</option>','<option value="__none__">Unassigned</option>'].concat(foremanNames().map(n=>`<option value="${esc(n)}" ${assetForeman===n?'selected':''}>${esc(n)}</option>`)).join('');
   const modeToggle=`<button data-action="assets-mode" data-m="table" class="chip ${assetsViewMode==='table'?'on':''}">Table</button><button data-action="assets-mode" data-m="summary" class="chip ${assetsViewMode==='summary'?'on':''}">By category</button>`;
   const tableHtml = `<div class="flex flex-wrap gap-sm items-center mb-md">
-       <div class="relative flex-1 min-w-[200px]"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
-       <input id="assetSearch" value="${esc(assetQuery)}" oninput="assetSearchInput(this.value)" placeholder="Search ID, serial, description, foreman…" class="ipt pl-9" autocomplete="off"></div>
+       <div class="relative flex-1 min-w-[200px]"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+       <input id="assetSearch" value="${esc(assetQuery)}" oninput="assetSearchInput(this.value)" placeholder="Search ID, serial, description, foreman…" class="ipt pl-8" autocomplete="off"></div>
        <span id="assetCountLbl" class="font-body-sm text-on-surface-variant whitespace-nowrap"></span>
        <select onchange="assetForeman=this.value;renderCurrent()" class="ipt" style="width:auto;min-width:150px" title="Filter by assigned foreman">${fmOpts}</select>
        <div class="flex gap-1 flex-wrap">${chips}</div>
