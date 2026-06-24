@@ -582,7 +582,7 @@ function classifyAssets(items){
   function place(cat,desc,qty,brand){
     let sub=subtype(cat,desc);
     if(brand===null){ const spec=sizeSpec(desc); if(spec) sub = sub?(spec+' '+sub):spec; }
-    const key=(brand||'Unbranded')+' '+sub;
+    const key=(brand||'Unbranded')+'\u001f'+sub;
     agg[cat][key]=(agg[cat][key]||0)+qty;
   }
   for(const it of items){
@@ -595,7 +595,7 @@ function classifyAssets(items){
   }
   const buckets={};
   for(const cat of CATEGORY_NAMES){
-    const entries=Object.entries(agg[cat]).map(([k,qty])=>{const i=k.indexOf(' ');return {brand:k.slice(0,i),sub:k.slice(i+1),qty};});
+    const entries=Object.entries(agg[cat]).map(([k,qty])=>{const i=k.indexOf('\u001f');return {brand:k.slice(0,i),sub:k.slice(i+1),qty};});
     entries.sort((a,b)=>(brandRank(a.brand)-brandRank(b.brand))||(a.sub<b.sub?-1:a.sub>b.sub?1:0));
     const rows=[]; let total=0;
     for(const {brand,sub,qty} of entries){ let {label,flagged}=_label(brand,sub,cat); if(flagged) label+='   ⚑ needs ID'; rows.push({label,qty,flagged}); total+=qty; }
@@ -610,7 +610,7 @@ function groupForReconcile(items, includeBulk){
     const desc=(item.description||'').trim();
     let sub=subtype(cat,desc);
     if(brand===null){ const spec=sizeSpec(desc); if(spec) sub = sub?(spec+' '+sub):spec; }
-    const key=(brand||'Unbranded')+' '+sub;
+    const key=(brand||'Unbranded')+'\u001f'+sub;
     (agg[cat][key]=agg[cat][key]||[]).push(item);
   }
   for(const it of items){
@@ -635,7 +635,7 @@ function groupForReconcile(items, includeBulk){
       if(btotal>0) out.push({category:'Bulk',total:btotal,lines:blines});
       continue;
     }
-    const entries=Object.entries(agg[cat]).map(([k,tools])=>{const i=k.indexOf(' ');return {brand:k.slice(0,i),sub:k.slice(i+1),tools};});
+    const entries=Object.entries(agg[cat]).map(([k,tools])=>{const i=k.indexOf('\u001f');return {brand:k.slice(0,i),sub:k.slice(i+1),tools};});
     entries.sort((a,b)=>(brandRank(a.brand)-brandRank(b.brand))||(a.sub<b.sub?-1:a.sub>b.sub?1:0));
     const lines=[]; let total=0;
     for(const {brand,sub,tools} of entries){
@@ -1038,7 +1038,7 @@ function renderDashboard(root){
   + `<div class="grid grid-cols-2 lg:grid-cols-4 gap-gutter mb-gutter">
       ${kpiCard('Total Assets', total, 'inventory_2', tagged+' tagged tools · '+bulk+' bulk lines')}
       ${kpiCardAccent('On-Site', onsite, 'place', '#fb923c')}
-      ${kpiCardAccent('Verified', vpct+'%', 'verified', '#4ade80')}
+      ${kpiCardAccent('Verified', verified+' / '+onsite+' ('+vpct+'%)', 'verified', '#4ade80')}
       ${kpiCard(priceMode==='buyout'?'Buyout Value':'Rental / mo', money(pmTotal()), 'payments')}
       ${kpiCardErr('Tools Lost', lost, 'warning')}
       ${kpiCardAccent('Missing', missing, 'help', missing?'#ffb4ab':'#9fb0cb')}
@@ -1560,7 +1560,7 @@ function renderAudits(root){
   else if(auditFilter==='missing') list=onsite.filter(a=>(a.verified||'')==='Missing');
   const chips=[['all','All'],['unverified','Unverified'],['verified','Verified'],['missing','Missing']].map(([k,l])=>`<button data-action="audit-filter" data-st="${k}" class="chip ${auditFilter===k?'on':''}">${l}</button>`).join('');
   const modeToggle=`<button data-action="audit-mode" data-m="audit" class="chip ${auditMode==='audit'?'on':''}">Mark on-site</button><button data-action="audit-mode" data-m="summary" class="chip ${auditMode==='summary'?'on':''}">Summary</button>`;
-  root.innerHTML = pageHeader('On-Site Audit', verified+' / '+total+' verified · '+missing+' missing',
+  root.innerHTML = pageHeader('On-Site Audit', verified+' / '+total+' verified ('+pct+'%) · '+missing+' missing',
     `<button class="btn-ghost" data-action="audit-reset">Reset</button><button class="btn-primary" data-action="audit-summary"><span class="material-symbols-outlined text-[18px]">summarize</span>Generate Summary</button>`)
   + `<div class="flex gap-1 mb-md">${modeToggle}</div>`
   + (auditMode==='summary' ? summaryGridHtml()
@@ -1811,7 +1811,8 @@ function doPrint(html, pageCss){
 }
 window.onafterprint=()=>{ document.getElementById('printRoot').innerHTML=''; };
 function printChecklist(){
-  const {buckets,excludedConsumableQty}=classifyAssets(assetsArr());
+  const arr=assetsArr();
+  const {buckets,excludedConsumableQty}=classifyAssets(arr);
   const visible=CATEGORY_NAMES.filter(n=>buckets[n].total>0);
   const total=visible.reduce((s,n)=>s+buckets[n].total,0);
   if(!total){ toast('No on-site tools to count','info'); return; }
