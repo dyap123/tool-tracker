@@ -38,6 +38,8 @@
 
   var CONFIG_OK = /^AIza/.test(FIREBASE_CONFIG.apiKey || "");
   var APPCHECK_OK = /\S/.test(APPCHECK_SITE_KEY) && !/^PASTE_/.test(APPCHECK_SITE_KEY);
+  // Contact shown to users blocked at the door (server-enforced allowlist).
+  var ADMIN_CONTACT = (window.OY_CONFIG && window.OY_CONFIG.adminContact) || "dyap123@gmail.com";
 
   /* ======================================================================
      2. ROLES + CAPABILITY MATRIX  (single source of truth for all apps)
@@ -164,10 +166,20 @@
   function onAuth(cb) { authCbs.push(cb); cb(ctx(), _state); return oy; }
 
   /* ---- sign-in actions ---- */
+  // Blocking-function rejections arrive wrapped (auth/internal-error). Surface the human message.
+  function friendlyAuthErr(e) {
+    var m = (e && e.message) || "";
+    var mm = m.match(/Not approved[^"”]*/) || m.match(/Only Google[^"”]*/) || m.match(/Too many sign-in[^"”]*/);
+    if (mm) return mm[0].trim();
+    if (/BLOCKING_FUNCTION|internal-error/i.test(m)) return "Not approved — email " + ADMIN_CONTACT + " to request access.";
+    if (/popup-closed|cancelled-popup|popup_closed/i.test(m)) return ""; // user dismissed the popup
+    return m;
+  }
   function signInGoogle() {
     init();
     var p = new firebase.auth.GoogleAuthProvider();
-    return auth.signInWithPopup(p).catch(function (e) { gateErr(e.message); throw e; });
+    p.setCustomParameters({ prompt: "select_account" });
+    return auth.signInWithPopup(p).catch(function (e) { gateErr(friendlyAuthErr(e)); throw e; });
   }
   function signInEmail(email, pw, o) {
     init();
@@ -280,19 +292,15 @@
         '<div class="oy-link" id="oy-refresh">I just got access — refresh</div>' +
         "</div>";
     } else {
-      // signin
+      // signin — Google-only; access is limited to approved accounts (server-enforced allowlist).
       inner =
         '<div class="oy-card"><div class="oy-diamond"></div>' +
         '<div class="oy-title">' + esc(appName) + "</div>" +
-        '<div class="oy-sub">Sign in with your OpenYap account.</div>' +
+        '<div class="oy-sub">Sign in with your approved Google account.</div>' +
         '<button class="oy-btn oy-primary" id="oy-google">' +
         '<span>🔐</span> Continue with Google</button>' +
-        '<div class="oy-div">or email</div>' +
-        '<input class="oy-in" id="oy-email" type="email" placeholder="you@company.com" autocomplete="username">' +
-        '<input class="oy-in" id="oy-pass" type="password" placeholder="Password" autocomplete="current-password">' +
-        '<button class="oy-btn" id="oy-email-in">Sign in</button>' +
         '<div class="oy-err" id="oy-gate-err"></div>' +
-        '<div class="oy-link" id="oy-email-up">New here? Create an account</div>' +
+        '<div class="oy-sub" style="margin-top:16px;font-size:11.5px;line-height:1.5">Access is limited to approved accounts.<br>Email <b>' + esc(ADMIN_CONTACT) + "</b> to request access.</div>" +
         "</div>";
     }
     g.innerHTML = inner;
@@ -300,17 +308,11 @@
 
     var byId = function (i) { return document.getElementById(i); };
     if (byId("oy-google")) byId("oy-google").onclick = function () { signInGoogle().catch(function () {}); };
-    if (byId("oy-email-in")) byId("oy-email-in").onclick = function () {
-      signInEmail(byId("oy-email").value, byId("oy-pass").value, { create: false }).catch(function () {}); };
-    if (byId("oy-email-up")) byId("oy-email-up").onclick = function () {
-      signInEmail(byId("oy-email").value, byId("oy-pass").value, { create: true }).catch(function () {}); };
     if (byId("oy-signout")) byId("oy-signout").onclick = function () { signOut(); };
     if (byId("oy-refresh")) byId("oy-refresh").onclick = async function () {
       try { if (auth.currentUser) await auth.currentUser.getIdToken(true); } catch (e) {}
       location.reload();
     };
-    var pass = byId("oy-pass");
-    if (pass) pass.addEventListener("keydown", function (e) { if (e.key === "Enter") byId("oy-email-in").click(); });
   }
 
   function esc(s) {
