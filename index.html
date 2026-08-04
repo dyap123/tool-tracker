@@ -1564,7 +1564,7 @@ function renderAudits(root){
   const chips=[['all','All'],['unverified','Unverified'],['verified','Verified'],['missing','Missing']].map(([k,l])=>`<button data-action="audit-filter" data-st="${k}" class="chip ${auditFilter===k?'on':''}">${l}</button>`).join('');
   const modeToggle=`<button data-action="audit-mode" data-m="audit" class="chip ${auditMode==='audit'?'on':''}">Mark on-site</button><button data-action="audit-mode" data-m="summary" class="chip ${auditMode==='summary'?'on':''}">Summary</button>`;
   root.innerHTML = pageHeader('On-Site Audit', verified+' / '+total+' verified ('+pct+'%) · '+missing+' missing',
-    `<button class="btn-ghost" data-action="audit-reset">Reset</button><button class="btn-primary" data-action="audit-summary"><span class="material-symbols-outlined text-[18px]">summarize</span>Generate Summary</button>`)
+    `<button class="btn-ghost" data-action="audit-reset">Reset</button><button class="btn-ghost" data-action="print-unverified" title="11×17 list of everything not yet verified — send it to the foreman"><span class="material-symbols-outlined text-[18px]">print</span>Unverified Summary 11×17</button><button class="btn-primary" data-action="audit-summary"><span class="material-symbols-outlined text-[18px]">summarize</span>Generate Summary</button>`)
   + `<div class="flex gap-1 mb-md">${modeToggle}</div>`
   + (auditMode==='summary' ? summaryGridHtml()
      : `<div class="mb-md"><div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden"><div style="width:${pct}%;background:#f97316;height:100%"></div></div></div>`
@@ -1737,6 +1737,13 @@ function renderReports(root){
         <button class="btn-ghost" data-action="report-returnbuyout-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button></div>
         <div class="font-label-sm text-on-surface-variant mt-sm"><span style="color:#22c55e">${verifiedN} verified</span> · <span style="color:#ffb4ab">${notVerifiedN} not verified</span></div>
       </div>
+      <div class="bg-surface-container-lowest border border-outline-variant rounded p-lg">
+        <div class="flex items-center gap-sm mb-sm"><span class="material-symbols-outlined text-[28px]" style="color:#f59e0b">search</span><h3 class="font-headline-md text-on-surface">Unverified Summary (Look-out List)</h3></div>
+        <p class="font-body-md text-on-surface-variant mb-md">11×17 tabloid of every on-site tool <b>not yet verified</b> — Item ID, tool name, serial and a blank FOUND box. Hand it to the foreman to go find them.</p>
+        <div class="flex gap-sm flex-wrap"><button class="btn-primary" data-action="print-unverified"><span class="material-symbols-outlined text-[18px]">print</span>Generate 11×17 List</button>
+        <button class="btn-ghost" data-action="export-unverified-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button></div>
+        <div class="font-label-sm text-on-surface-variant mt-sm"><span style="color:#f59e0b">${notVerifiedN} to find</span></div>
+      </div>
     </div>`;
   const rdz=document.getElementById('reportsDrop');
   if(rdz){
@@ -1903,6 +1910,78 @@ function printSummary(){
   doPrint(html,css);
 }
 
+/* ---------- Unverified summary: 11x17 "look out for these" sheet for the foreman ----------
+   Every on-site tool that has NOT been verified='Yes' in an audit, grouped by category,
+   with Item ID + tool name + serial and a blank FOUND box to write in the field. */
+function unverifiedList(){
+  return assetsArr().filter(onSite).filter(a=>(a.verified||'')!=='Yes');
+}
+function printUnverified(){
+  const onsite=assetsArr().filter(onSite);
+  const pending=unverifiedList();
+  if(!pending.length){ toast(onsite.length?'All on-site tools are verified — nothing to chase':'No on-site tools','info'); return; }
+  const verifiedN=onsite.length-pending.length, missingN=pending.filter(a=>(a.verified||'')==='Missing').length;
+  const groups={};
+  pending.forEach(a=>{ const c=((a.category||'').trim())||'Uncategorized'; (groups[c]=groups[c]||[]).push(a); });
+  const names=Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length||a.localeCompare(b));
+  names.forEach(n=>groups[n].sort((a,b)=>String(a.description||'').localeCompare(String(b.description||''))||String(a.item_id||'').localeCompare(String(b.item_id||''))));
+  const cards=names.map(n=>{
+    const rows=groups[n].map(a=>{
+      const miss=(a.verified||'')==='Missing';
+      return `<div class="ln${miss?' miss':''}"><span class="id">${esc(a.item_id||a.part_no||'—')}</span><span class="lab">${esc(a.description||'—')}${miss?' <b class="tag">MISSING</b>':''}</span><span class="ser">${esc(a.serial||'—')}</span><span class="fm">${esc(a.assigned_to||'')}</span><span class="box"></span></div>`;
+    }).join('');
+    return `<div class="cat"><div class="cat-h">${esc(n.toUpperCase())} <span class="ct">${groups[n].length} TO FIND</span></div>
+      <div class="ch"><span class="id">ITEM ID</span><span class="lab">TOOL NAME · NOMBRE</span><span class="ser">SERIAL</span><span class="fm">ASSIGNED</span><span class="boxh">FOUND?</span></div>${rows}</div>`;
+  }).join('');
+  const dt=new Date();
+  const dow=dt.toLocaleDateString('en-US',{weekday:'long'}).toUpperCase();
+  const md=dt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}).toUpperCase();
+  const html=`<div class="unv">
+    <div class="wm"></div>
+    <div class="banner"><div><div class="kick">WEBCOR BUILDERS · ${esc(state.config.projectName||'LACC PROJECT')}</div><div class="title">UNVERIFIED TOOLS — LOOK OUT FOR THESE</div><div class="sub">Not yet confirmed on site. Find it, write where you found it in FOUND. · Herramientas sin verificar — buscar y anotar dónde se encontró.</div></div>
+      <div class="rt"><div class="dow">${dow}</div><div class="date">${md}</div><div class="onb">${pending.length} TO FIND</div><div class="meta">${names.length} categories · ${verifiedN} already verified</div></div></div>
+    <div class="total"><b>${pending.length}</b> UNVERIFIED OF ${onsite.length} ON SITE · <i>sin verificar</i>${missingN?` &nbsp;|&nbsp; <span class="mred">${missingN} already reported MISSING</span>`:''} &nbsp;|&nbsp; ${verifiedN} verified</div>
+    <div class="cols">${cards}</div>
+    <div class="sign"><div>FOUND BY / ENCONTRADO POR: _______________________</div><div>DATE / FECHA: _______________</div><div>SUPERINTENDENT: _______________________</div></div>
+    <div class="foot">These tools have NOT been verified on site. Return this sheet to the office — verified tools get checked off in EquipTrack → Audits; anything still not found goes to the Lost Tracker. Source: Assets, On-Site status, Verified ≠ Yes.</div>
+  </div>`;
+  const css=`@page{size:17in 11in;margin:9mm} *{box-sizing:border-box} html,body{background:#fff}
+   .unv{position:relative;font-family:Inter,Arial,sans-serif;color:#111;background:#fff}
+   .wm{position:absolute;inset:0;background:url('logo.png') no-repeat center 58%;background-size:44% auto;opacity:.05;filter:grayscale(1);z-index:0}
+   .banner,.total,.cols,.sign,.foot{position:relative;z-index:1}
+   .banner{display:flex;justify-content:space-between;align-items:flex-start;background:#b45309;color:#fff;padding:12px 18px;border-radius:4px}
+   .kick{font-size:9px;font-weight:700;letter-spacing:.06em}.title{font-size:24px;font-weight:800;letter-spacing:-.01em}.sub{font-size:10px;opacity:.92;margin-top:2px}
+   .rt{text-align:right}.dow{font-size:11px;font-weight:700;letter-spacing:.05em}.date{font-size:23px;font-weight:800;line-height:1.05}.onb{font-size:12px;font-weight:700;margin-top:3px}.meta{font-size:8px;opacity:.85}
+   .total{background:#fdf6ec;border:1px solid #b45309;border-left:6px solid #b45309;margin:8px 0;padding:7px 14px;font-size:10px;font-weight:600;color:#333;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+   .total b{font-size:24px;color:#b45309;margin-right:6px}.total i{color:#555;font-weight:400}.total .mred{color:#b91c1c;font-weight:700}
+   .cols{column-count:${pending.length>80?3:2};column-gap:14px}
+   .cat{break-inside:avoid;border:1px solid #e0d3bf;border-radius:4px;margin-bottom:9px;overflow:hidden}
+   .cat-h{background:#b45309;color:#fff;font-weight:800;font-size:10px;letter-spacing:.03em;padding:5px 9px;display:flex;justify-content:space-between;align-items:center}
+   .cat-h .ct{font-weight:700;font-size:9px;opacity:.95}
+   .ch,.ln{display:flex;align-items:center;gap:8px;padding:3px 9px}
+   .ch{background:#fdf3e6;font-size:8px;font-weight:700;color:#7a5312;letter-spacing:.04em}
+   .ln{border-top:1px solid #eef0ee;font-size:10px}
+   .ln.miss{background:#fff2f2;color:#8a1111}
+   .id{width:74px;font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:#92400e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+   .ln.miss .id{color:#8a1111}
+   .lab{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+   .ser{width:110px;font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+   .fm{width:78px;font-size:9px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+   .ch .fm,.ch .ser,.ch .id,.ch .lab{color:#7a5312;font-size:8px}
+   .boxh{width:58px;text-align:center}
+   .box{width:58px;height:15px;border:1px solid #b9b9b9;background:#fffce8;border-radius:2px;flex-shrink:0}
+   .tag{color:#b91c1c;font-size:8px;font-weight:800;letter-spacing:.04em}
+   .sign{display:flex;gap:36px;margin-top:10px;font-size:10px;font-weight:600;color:#333}
+   .foot{margin-top:6px;font-size:9px;color:#555;font-style:italic}`;
+  doPrint(html,css);
+}
+function exportUnverifiedXlsx(){
+  const rows=unverifiedList().sort((a,b)=>String(a.category).localeCompare(String(b.category))||String(a.description).localeCompare(String(b.description)))
+    .map(a=>({'Item ID':a.item_id||a.part_no||'','Serial':a.serial||'','Description':a.description||'','Category':a.category||'','Assigned To':a.assigned_to||'','Status':(a.verified||'')==='Missing'?'Reported Missing':'Not verified','Monthly Cost':num(a.unit_cost)}));
+  if(!rows.length){ toast('Nothing unverified','info'); return; }
+  exportXlsx(rows,'Unverified','Unverified Tools '+todayStr()+'.xlsx');
+}
+
 /* ---------- jsPDF reports ---------- */
 async function buildLostReportPdf(){
   await ensureJsPDF();
@@ -2009,6 +2088,8 @@ function dispatchAction5(a, el){
     case 'proj-delete': deleteProjectPrompt(pid); return true;
     case 'print-checklist': printChecklist(); return true;
     case 'print-summary': printSummary(); return true;
+    case 'print-unverified': printUnverified(); return true;
+    case 'export-unverified-xlsx': exportUnverifiedXlsx(); return true;
     case 'report-returnbuyout-pdf': buildReturnBuyoutPdf(); return true;
     case 'report-returnbuyout-xlsx': exportReturnBuyoutXlsx(); return true;
     case 'lost-tab': lostTab=el.dataset.t; lostSel={}; renderCurrent(); return true;
