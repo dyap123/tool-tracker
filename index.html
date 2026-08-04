@@ -1922,13 +1922,28 @@ function printUnverified(){
   pending.forEach(a=>{ const c=((a.category||'').trim())||'Uncategorized'; (groups[c]=groups[c]||[]).push(a); });
   const names=Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length||a.localeCompare(b));
   names.forEach(n=>groups[n].sort((a,b)=>String(a.description||'').localeCompare(String(b.description||''))||String(a.item_id||'').localeCompare(String(b.item_id||''))));
+  // Auto-density: scale the grid up or down so the list fills the tabloid sheet instead of
+  // leaving dead space on a short list (or spilling to a 2nd page on a long one).
+  const cols=pending.length>90?3:2;
+  const AVAIL=820;                                             // px of grid area on an 11in page, after banner + footer
+  const blocks=names.map(n=>groups[n].length*18+38);           // height of one category block at scale 1
+  // Categories never split across columns (break-inside:avoid), so the browser packs them greedily.
+  // Mirror that packing to find the largest scale whose worst column still fits the page.
+  const fits=sc=>{ const cap=AVAIL/sc; let col=1,h=0;
+    for(const b of blocks){ if(h && h+b>cap){ if(++col>cols) return false; h=0; } h+=b; }
+    return true; };
+  let s=0.8;
+  for(let t=1.6;t>0.8;t-=0.02){ if(fits(t)){ s=t; break; } }
+  const px=n=>(n*s).toFixed(1)+'px';
   const cards=names.map(n=>{
     const rows=groups[n].map(a=>{
       const miss=(a.verified||'')==='Missing';
-      return `<div class="ln${miss?' miss':''}"><span class="id">${esc(a.item_id||a.part_no||'—')}</span><span class="lab">${esc(a.description||'—')}${miss?' <b class="tag">MISSING</b>':''}</span><span class="ser">${esc(a.serial||'—')}</span><span class="fm">${esc(a.assigned_to||'')}</span><span class="box"></span></div>`;
+      return `<tr${miss?' class="miss"':''}><td class="id">${esc(a.item_id||a.part_no||'—')}</td><td class="lab">${esc(a.description||'—')}${miss?' <b class="tag">MISSING</b>':''}</td><td class="ser">${esc(a.serial||'—')}</td><td class="fm">${esc(a.assigned_to||'')}</td><td class="box"></td></tr>`;
     }).join('');
     return `<div class="cat"><div class="cat-h">${esc(n.toUpperCase())} <span class="ct">${groups[n].length} TO FIND</span></div>
-      <div class="ch"><span class="id">ITEM ID</span><span class="lab">TOOL NAME · NOMBRE</span><span class="ser">SERIAL</span><span class="fm">ASSIGNED</span><span class="boxh">FOUND?</span></div>${rows}</div>`;
+      <table><colgroup><col class="w1"><col><col class="w3"><col class="w4"><col class="w5"></colgroup>
+      <thead><tr><th>ITEM ID</th><th>TOOL NAME · NOMBRE</th><th>SERIAL</th><th>ASSIGNED</th><th class="bh">FOUND</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
   }).join('');
   const dt=new Date();
   const dow=dt.toLocaleDateString('en-US',{weekday:'long'}).toUpperCase();
@@ -1951,23 +1966,26 @@ function printUnverified(){
    .rt{text-align:right}.dow{font-size:11px;font-weight:700;letter-spacing:.05em}.date{font-size:23px;font-weight:800;line-height:1.05}.onb{font-size:12px;font-weight:700;margin-top:3px}.meta{font-size:8px;opacity:.85}
    .total{background:#fdf6ec;border:1px solid #b45309;border-left:6px solid #b45309;margin:8px 0;padding:7px 14px;font-size:10px;font-weight:600;color:#333;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
    .total b{font-size:24px;color:#b45309;margin-right:6px}.total i{color:#555;font-weight:400}.total .mred{color:#b91c1c;font-weight:700}
-   .cols{column-count:${pending.length>80?3:2};column-gap:14px}
-   .cat{break-inside:avoid;border:1px solid #e0d3bf;border-radius:4px;margin-bottom:9px;overflow:hidden}
-   .cat-h{background:#b45309;color:#fff;font-weight:800;font-size:10px;letter-spacing:.03em;padding:5px 9px;display:flex;justify-content:space-between;align-items:center}
-   .cat-h .ct{font-weight:700;font-size:9px;opacity:.95}
-   .ch,.ln{display:flex;align-items:center;gap:8px;padding:3px 9px}
-   .ch{background:#fdf3e6;font-size:8px;font-weight:700;color:#7a5312;letter-spacing:.04em}
-   .ln{border-top:1px solid #eef0ee;font-size:10px}
-   .ln.miss{background:#fff2f2;color:#8a1111}
-   .id{width:74px;font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:#92400e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-   .ln.miss .id{color:#8a1111}
-   .lab{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-   .ser{width:110px;font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-   .fm{width:78px;font-size:9px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-   .ch .fm,.ch .ser,.ch .id,.ch .lab{color:#7a5312;font-size:8px}
-   .boxh{width:58px;text-align:center}
-   .box{width:58px;height:15px;border:1px solid #b9b9b9;background:#fffce8;border-radius:2px;flex-shrink:0}
-   .tag{color:#b91c1c;font-size:8px;font-weight:800;letter-spacing:.04em}
+   .cols{column-count:${cols};column-gap:${px(12)}}
+   .cat{break-inside:avoid;border:1px solid #b98a4b;margin-bottom:${px(8)};overflow:hidden}
+   .cat-h{background:#b45309;color:#fff;font-weight:800;font-size:${px(10)};letter-spacing:.03em;padding:${px(4)} ${px(6)};display:flex;justify-content:space-between;align-items:center}
+   .cat-h .ct{font-weight:700;font-size:${px(8.5)};opacity:.95}
+   table{width:100%;border-collapse:collapse;table-layout:fixed}
+   col.w1{width:${px(70)}}col.w3{width:${px(94)}}col.w4{width:${px(68)}}col.w5{width:${px(56)}}
+   th{background:#fdf3e6;color:#7a5312;font-size:${px(7.5)};font-weight:700;letter-spacing:.04em;text-align:left;padding:${px(2.5)} ${px(5)};border:1px solid #d3b98f;white-space:nowrap}
+   th.bh{text-align:center}
+   td{font-size:${px(10)};padding:${px(3)} ${px(5)};border:1px solid #c8c8c8;vertical-align:middle;line-height:1.15}
+   tbody tr:nth-child(even) td{background:#f6f6f4}
+   tr.miss td{background:#fdecec;color:#8a1111}
+   td.id{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:#92400e;white-space:nowrap;overflow:hidden}
+   tr.miss td.id{color:#8a1111}
+   td.lab{word-break:break-word}
+   td.ser{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600;white-space:nowrap;overflow:hidden}
+   td.fm{font-size:${px(8.5)};color:#555;white-space:nowrap;overflow:hidden}
+   td.box{background:#fffdf2}
+   tbody tr:nth-child(even) td.box{background:#fffbe8}
+   tr.miss td.box{background:#fffdf2}
+   .tag{color:#b91c1c;font-size:${px(7.5)};font-weight:800;letter-spacing:.04em;white-space:nowrap}
    .sign{display:flex;gap:36px;margin-top:10px;font-size:10px;font-weight:600;color:#333}
    .foot{margin-top:6px;font-size:9px;color:#555;font-style:italic}`;
   doPrint(html,css);
