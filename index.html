@@ -1811,9 +1811,26 @@ function renderReconcile(root, tabs){
 function updateReconBar(){ const ids=Object.keys(lostSel).filter(k=>lostSel[k]); const cv=ids.reduce((s,k)=>s+num((state.assets[k]||{}).unit_cost),0);
   const c=document.getElementById('reconCount'), v=document.getElementById('reconVal'); if(c)c.textContent=ids.length; if(v)v.textContent=money(cv); }
 
-/* ---------- Print: bilingual 11x17 + filled summary ---------- */
-function doPrint(html, pageCss){
-  document.getElementById('printRoot').innerHTML='<style>'+(pageCss||'@page{size:landscape;margin:10mm}')+'</style>'+html;
+/* ---------- Print: bilingual 11x17 + filled summary ----------
+   #printRoot is display:none until print media applies, and a browser never fetches CSS
+   background-images inside a display:none subtree — so the logo.png watermark only started
+   downloading mid-print-layout and the first preview could snapshot blank. Warm the watermark
+   and the webfonts, and let layout settle, before handing off to window.print(). */
+let printAssetsReady=null;
+function preloadPrintAssets(){
+  if(printAssetsReady) return printAssetsReady;
+  printAssetsReady=Promise.all([
+    new Promise(res=>{ const i=new Image(); i.onload=i.onerror=res; i.src='logo.png';
+                       setTimeout(res,4000); }),                    // never block printing on a slow asset
+    (document.fonts&&document.fonts.ready)?document.fonts.ready.catch(()=>{}):Promise.resolve()
+  ]);
+  return printAssetsReady;
+}
+async function doPrint(html, pageCss){
+  const root=document.getElementById('printRoot');
+  root.innerHTML='<style>'+(pageCss||'@page{size:landscape;margin:10mm}')+'</style>'+html;
+  await preloadPrintAssets();
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
   window.print();
 }
 window.onafterprint=()=>{ document.getElementById('printRoot').innerHTML=''; };
@@ -1938,11 +1955,12 @@ function printUnverified(){
   const cards=names.map(n=>{
     const rows=groups[n].map(a=>{
       const miss=(a.verified||'')==='Missing';
-      return `<tr${miss?' class="miss"':''}><td class="id">${esc(a.item_id||a.part_no||'—')}</td><td class="lab">${esc(a.description||'—')}${miss?' <b class="tag">MISSING</b>':''}</td><td class="ser">${esc(a.serial||'—')}</td><td class="fm">${esc(a.assigned_to||'')}</td><td class="box"></td></tr>`;
+      // item_id is the tag the crew reads off the tool; some imports carry it in the serial field.
+      return `<tr${miss?' class="miss"':''}><td class="id">${esc(a.item_id||a.serial||a.part_no||'—')}</td><td class="lab">${esc(a.description||'—')}${miss?' <b class="tag">MISSING</b>':''}</td><td class="fm">${esc(a.assigned_to||'')}</td><td class="box"></td></tr>`;
     }).join('');
     return `<div class="cat"><div class="cat-h">${esc(n.toUpperCase())} <span class="ct">${groups[n].length} TO FIND</span></div>
-      <table><colgroup><col class="w1"><col><col class="w3"><col class="w4"><col class="w5"></colgroup>
-      <thead><tr><th>ITEM ID</th><th>TOOL NAME · NOMBRE</th><th>SERIAL</th><th>ASSIGNED</th><th class="bh">FOUND</th></tr></thead>
+      <table><colgroup><col class="w1"><col><col class="w4"><col class="w5"></colgroup>
+      <thead><tr><th>ITEM ID</th><th>TOOL NAME · NOMBRE</th><th>ASSIGNED</th><th class="bh">FOUND</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;
   }).join('');
   const dt=new Date();
@@ -1971,7 +1989,7 @@ function printUnverified(){
    .cat-h{background:#b45309;color:#fff;font-weight:800;font-size:${px(10)};letter-spacing:.03em;padding:${px(4)} ${px(6)};display:flex;justify-content:space-between;align-items:center}
    .cat-h .ct{font-weight:700;font-size:${px(8.5)};opacity:.95}
    table{width:100%;border-collapse:collapse;table-layout:fixed}
-   col.w1{width:${px(70)}}col.w3{width:${px(94)}}col.w4{width:${px(68)}}col.w5{width:${px(56)}}
+   col.w1{width:${px(86)}}col.w4{width:${px(70)}}col.w5{width:${px(88)}}
    th{background:#fdf3e6;color:#7a5312;font-size:${px(7.5)};font-weight:700;letter-spacing:.04em;text-align:left;padding:${px(2.5)} ${px(5)};border:1px solid #d3b98f;white-space:nowrap}
    th.bh{text-align:center}
    td{font-size:${px(10)};padding:${px(3)} ${px(5)};border:1px solid #c8c8c8;vertical-align:middle;line-height:1.15}
@@ -1980,7 +1998,6 @@ function printUnverified(){
    td.id{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:#92400e;white-space:nowrap;overflow:hidden}
    tr.miss td.id{color:#8a1111}
    td.lab{word-break:break-word}
-   td.ser{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600;white-space:nowrap;overflow:hidden}
    td.fm{font-size:${px(8.5)};color:#555;white-space:nowrap;overflow:hidden}
    td.box{background:#fffdf2}
    tbody tr:nth-child(even) td.box{background:#fffbe8}
