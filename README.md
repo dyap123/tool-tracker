@@ -9,6 +9,7 @@ foreman-attendance, concrete-breaks). No server to keep alive.
 ## What it does
 - **Inventory** — assets built from ToolHound reports + manually-added on-site tools. Tracks the monthly rental charge (sum of on-site unit cost).
 - **Import ToolHound** — upload CSV/Excel (preferred) or PDF; auto-detects Issues / Transaction / Rental-charge formats; review-before-commit diff (add / update / mark returned).
+  - PDFs try two shapes: the **Issued Assets** columnar report (landscape, header repeats per page, each record spans three rows) is read *by column* — text runs are filed under the header cell they sit beneath, since Item ID / Serial / Part No are all bare numbers a regex can't tell apart. Anything else falls back to the tagged-line-item rental invoice parser (with OCR for scanned pages).
 - **Add Tool On-Site** — manual add for extra tools not on a ToolHound report (tool type, tool #, cost).
 - **Orders** — create orders + a receiving checklist (Pending → Arrived → add to inventory).
 - **On-Site Audit** — walk the site, check off what's present, Mark Missing, Generate Summary PDF.
