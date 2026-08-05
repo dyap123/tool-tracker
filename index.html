@@ -11,6 +11,10 @@
 <!-- Firebase (RTDB, compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
+<script>window.OY_APP_NAME='Tool Tracker';</script>
+<script src="vendor/openyap-core/openyap-core.js"></script>
 <!-- perf: heavy libs (jsPDF ~330KB, XLSX ~500KB, pdf.js, Tesseract ~950KB) are now
      lazy-loaded on first use instead of eagerly on every page load. -->
 <script>
@@ -189,9 +193,8 @@
 const ROOT = 'tool-tracker';          // app root — LACC's legacy data lives directly here
 const META = ROOT+'/_meta/projects';  // project registry (project-independent path)
 let activeNS = ROOT;                   // Firebase namespace of the currently-selected project
-try { if(!firebase.apps.length) firebase.initializeApp({databaseURL:'https://gen-lang-client-0119642855-default-rtdb.firebaseio.com'}); }
-catch(e){ console.error('Firebase init failed', e); }
-const db = firebase.database();
+oy.init();                    // openyap-core: canonical (openyap-prod) config + App Check + auth
+const db = oy.db;
 window.fb = {
   listen:(p,cb)=>{ const r=db.ref(activeNS+'/'+p); r.on('value',s=>cb(s.val())); return r; },
   set:(p,d)=>db.ref(activeNS+'/'+p).set(d),
@@ -2169,13 +2172,12 @@ function dispatchAction(a, el, e){
    ============================================================ */
 try{ if(localStorage.getItem('navCollapsed')==='1') document.body.classList.add('nav-collapsed'); }catch(e){}
 initProjects();          // synchronous — pick active project + derive namespace (no Firebase wait)
-startListeners();
-loadCrewForemen();
 markNav();
 renderProjectSwitcher();
 window.addEventListener('hashchange',()=>{ const v=location.hash.replace('#',''); if(VIEWS[v]&&v!==currentView) setView(v); });
 setView(VIEWS[location.hash.replace('#','')]?location.hash.replace('#',''):'dashboard');
-loadRegistry();          // async — load/seed the registry, keep the switcher live
+oy.ensureAuth();         // openyap-core renders the sign-in / access-pending gate
+oy.onReady(()=>{ startListeners(); loadCrewForemen(); loadRegistry(); });   // Firebase reads — only after sign-in + role
 
 // Synchronous: choose the active project from localStorage and derive its namespace,
 // so the UI renders immediately without waiting on Firebase.
