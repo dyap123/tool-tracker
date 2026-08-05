@@ -1302,12 +1302,43 @@ function foremanNames(){
 function foremanDatalist(){ return `<datalist id="foremanList">`+foremanNames().map(n=>`<option value="${esc(n)}"></option>`).join('')+`</datalist>`; }
 function refreshForemanList(){ const dl=document.getElementById('foremanList'); if(dl) dl.innerHTML=foremanNames().map(n=>`<option value="${esc(n)}"></option>`).join(''); }
 
+/* ---- live result count, shared by all four search boxes ---------------------
+   Every search here filters in place by toggling style.display, so the count is
+   read back off the DOM rather than recomputed from state — one source of truth,
+   and it cannot drift from what is actually on screen.
+
+   Counting is LEAF-ONLY. Orders puts `data-search` on the group card AND on the
+   line rows inside it, so a naive querySelectorAll length double-counts every
+   grouped order. A leaf is an element carrying data-search with no data-search
+   descendant; that is exactly what a user means by "a result".
+
+   Visibility is checked up the ancestor chain, not on the element alone: the
+   summary and order views hide whole cards once every row inside them is filtered
+   out, and those rows keep display:'' — so they would count as visible. --------- */
+function searchLeafCount(root){
+  if(!root) return 0;
+  let n=0;
+  root.querySelectorAll('[data-search]').forEach(el=>{
+    if(el.querySelector('[data-search]')) return;              // a group, not a result
+    for(let p=el; p && p!==root; p=p.parentElement) if(p.style.display==='none') return;
+    n++;
+  });
+  return n;
+}
+// One wording everywhere, and blank when the box is empty — an idle "649 matches"
+// next to an empty field reads as a filter that is on when nothing is filtered.
+function setSearchCount(id, q, n){
+  const el=document.getElementById(id); if(!el) return;
+  el.textContent = q ? (n.toLocaleString()+' match'+(n===1?'':'es')) : '';
+  el.style.color = (q && !n) ? '#ffb4ab' : '';                 // no hits reads as an error
+}
+
 // Fluid in-place search: show/hide existing rows, never re-render or refetch.
 function assetSearchInput(v){ assetQuery=(v||'').toLowerCase(); applyAssetSearch(); }
 function applyAssetSearch(){
   const q=assetQuery, rows=document.querySelectorAll('#assetRows tr[data-search]'); let shown=0;
   rows.forEach(tr=>{ const m=!q || tr.dataset.search.indexOf(q)>=0; tr.style.display=m?'':'none'; if(m) shown++; });
-  const lbl=document.getElementById('assetCountLbl'); if(lbl) lbl.textContent=q?(shown+' match'+(shown===1?'':'es')):'';
+  setSearchCount('assetCountLbl', q, shown);
 }
 
 function openAddTool(){
@@ -1390,9 +1421,12 @@ function applySummarySearch(){
   grid.querySelectorAll('[data-search]').forEach(r=>{ r.style.display=(!q||r.dataset.search.indexOf(q)>=0)?'':'none'; });
   grid.querySelectorAll('.sum-sub').forEach(s=>{ s.style.display=[...s.querySelectorAll('[data-search]')].some(r=>r.style.display!=='none')?'':'none'; });
   grid.querySelectorAll('.sum-card').forEach(c=>{ c.style.display=[...c.querySelectorAll('[data-search]')].some(r=>r.style.display!=='none')?'':'none'; });
+  setSearchCount('summaryCountLbl', q, searchLeafCount(grid));
 }
 function auditSearchInput(v){ auditQuery=(v||'').toLowerCase(); applyAuditSearch(); }
-function applyAuditSearch(){ const q=auditQuery, list=document.getElementById('auditList'); if(!list) return; list.querySelectorAll('[data-search]').forEach(r=>{ r.style.display=(!q||r.dataset.search.indexOf(q)>=0)?'':'none'; }); }
+function applyAuditSearch(){ const q=auditQuery, list=document.getElementById('auditList'); if(!list) return;
+  list.querySelectorAll('[data-search]').forEach(r=>{ r.style.display=(!q||r.dataset.search.indexOf(q)>=0)?'':'none'; });
+  setSearchCount('auditCountLbl', q, searchLeafCount(list)); }
 async function bulkSummary(action){
   const keys=Object.keys(summarySel); if(!keys.length){ toast('Select tools first','info'); return; }
   if(action==='lost'){
@@ -1444,6 +1478,7 @@ function orderSearchInput(v){ orderQuery=(v||'').toLowerCase(); applyOrderSearch
 function applyOrderSearch(){ const q=orderQuery, list=document.getElementById('orderList'); if(!list) return;
   list.querySelectorAll('[data-search]').forEach(r=>{ r.style.display=(!q||r.dataset.search.indexOf(q)>=0)?'':'none'; });
   list.querySelectorAll('.sum-card').forEach(c=>{ c.style.display=[...c.querySelectorAll('[data-search]')].some(r=>r.style.display!=='none')?'':'none'; });
+  setSearchCount('orderCountLbl', q, searchLeafCount(list));
 }
 function ordersGroupHtml(arr, by){
   const keyOf=o=> by==='date' ? (o.order_date||'~No date')
@@ -1510,7 +1545,7 @@ function renderOrders(root){
        <input id="orderDropFile" type="file" accept=".csv,.xlsx,.xls,.pdf" multiple class="hidden">
        <div id="orderDropStatus" class="mt-xs font-body-sm text-on-surface-variant"></div>
      </label>`
-  + `<div class="flex gap-2 flex-wrap mb-md items-center"><div class="flex gap-1 flex-wrap">${chips}</div><div class="relative ml-auto"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input id="orderSearch" value="${esc(orderQuery)}" oninput="orderSearchInput(this.value)" placeholder="Search orders…" class="ipt pl-8" style="width:220px" autocomplete="off"></div></div>`
+  + `<div class="flex gap-2 flex-wrap mb-md items-center"><div class="flex gap-1 flex-wrap">${chips}</div><div class="relative ml-auto"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input id="orderSearch" value="${esc(orderQuery)}" oninput="orderSearchInput(this.value)" placeholder="Search orders…" class="ipt pl-8" style="width:220px" autocomplete="off"></div><span id="orderCountLbl" class="font-body-sm text-on-surface-variant whitespace-nowrap"></span></div>`
   + `<div class="flex gap-1 mb-md"><button data-action="order-view" data-v="list" class="chip ${orderView==='list'?'on':''}">List</button><button data-action="order-view" data-v="date" class="chip ${orderView==='date'?'on':''}">By date</button><button data-action="order-view" data-v="category" class="chip ${orderView==='category'?'on':''}">By category</button><button data-action="order-view" data-v="brand" class="chip ${orderView==='brand'?'on':''}">By brand</button></div>`
   + (filtered.length
       ? (orderView==='list' ? `<div id="orderList" class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">`+filtered.map(o=>orderCard(o)).join('')+`</div>` : ordersGroupHtml(filtered, orderView))
@@ -1689,7 +1724,7 @@ function renderAudits(root){
   + `<div class="flex gap-1 mb-md">${modeToggle}</div>`
   + (auditMode==='summary' ? summaryGridHtml()
      : `<div class="mb-md"><div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden"><div style="width:${pct}%;background:#f97316;height:100%"></div></div></div>`
-       + `<div class="flex gap-1 flex-wrap mb-md items-center">${chips}<div class="relative ml-auto"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input id="auditSearch" value="${esc(auditQuery)}" oninput="auditSearchInput(this.value)" placeholder="Search tools…" class="ipt pl-8" style="width:220px" autocomplete="off"></div></div>`
+       + `<div class="flex gap-1 flex-wrap mb-md items-center">${chips}<div class="relative ml-auto"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input id="auditSearch" value="${esc(auditQuery)}" oninput="auditSearchInput(this.value)" placeholder="Search tools…" class="ipt pl-8" style="width:220px" autocomplete="off"></div><span id="auditCountLbl" class="font-body-sm text-on-surface-variant whitespace-nowrap"></span></div>`
        + (list.length ? `<div id="auditList" class="flex flex-col gap-sm">`+list.map(a=>auditCard(a)).join('')+`</div>` : emptyState('fact_check', total?'Nothing in this filter.':'No on-site tools to audit yet.')));
   if(auditMode==='summary') applySummarySearch(); else applyAuditSearch();
 }
@@ -1787,7 +1822,7 @@ function summaryGridHtml(){
   const toggle=`<div class="flex items-center gap-2 mb-md flex-wrap"><span class="font-label-md text-on-surface-variant">Group by</span>
     <button data-action="sum-groupby" data-g="category" class="chip ${summaryGroupBy==='category'?'on':''}">Category</button>
     <button data-action="sum-groupby" data-g="brand" class="chip ${summaryGroupBy==='brand'?'on':''}">Brand</button>
-    <div class="relative ml-auto"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input id="summarySearch" value="${esc(summaryQuery)}" oninput="summarySearchInput(this.value)" placeholder="Search tools…" class="ipt pl-8" style="width:210px" autocomplete="off"></div>
+    <div class="relative ml-auto"><span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span><input id="summarySearch" value="${esc(summaryQuery)}" oninput="summarySearchInput(this.value)" placeholder="Search tools…" class="ipt pl-8" style="width:210px" autocomplete="off"></div><span id="summaryCountLbl" class="font-body-sm text-on-surface-variant whitespace-nowrap"></span>
     ${pmToggle()}
     <button class="btn-ghost" data-action="export-summary-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Cost Report</button></div>`;
   const toolRow=t=>{ const k=keyByItem[t.item_id]; const hay=((t.item_id||'')+' '+(t.description||'')+' '+(fmBy[t.item_id]||'')).toLowerCase(); return `<div data-search="${esc(hay)}" class="flex items-center gap-sm px-md py-1.5 hover:bg-surface-container-low">
