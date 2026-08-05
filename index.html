@@ -2067,22 +2067,38 @@ function printUnverified(){
   // leaving dead space on a short list (or spilling to a 2nd page on a long one).
   const cols=pending.length>90?3:2;
   const AVAIL=820;                                             // px of grid area on an 11in page, after banner + footer
-  const blocks=names.map(n=>groups[n].length*18+38);           // height of one category block at scale 1
-  // Categories never split across columns (break-inside:avoid), so the browser packs them greedily.
-  // Mirror that packing to find the largest scale whose worst column still fits the page.
-  const fits=sc=>{ const cap=AVAIL/sc; let col=1,h=0;
-    for(const b of blocks){ if(h && h+b>cap){ if(++col>cols) return false; h=0; } h+=b; }
-    return true; };
-  let s=0.8;
-  for(let t=1.6;t>0.8;t-=0.02){ if(fits(t)){ s=t; break; } }
+  // Scale-1 heights, derived from the rules below: a td is 10px×1.15 line + 3px padding
+  // top/bottom + 1px collapsed border; a card head is .cat-h + thead + margin + border.
+  const ROW=18.5, HEAD=45;
+  // A .cat card is break-inside:avoid, so one that's taller than a column can't be
+  // placed at all — the browser gives up on page 1 and pushes the WHOLE grid to page 2,
+  // stranding the banner on its own. So cut any category that overruns a column into
+  // continuation cards, then mirror the browser's greedy packing to pick the largest
+  // scale that still lands inside `cols` columns.
+  const SAFE=0.98;                                             // a hair of slack against font-metric drift between browsers
+  const layoutFor=sc=>{
+    const cap=AVAIL/sc, maxRows=Math.max(3,Math.floor((cap*SAFE-HEAD)/ROW));
+    const chunks=[];
+    names.forEach(n=>{ const rows=groups[n];
+      for(let i=0;i<rows.length;i+=maxRows) chunks.push({name:n, rows:rows.slice(i,i+maxRows), total:rows.length, cont:i>0}); });
+    let col=1,h=0;
+    for(const c of chunks){ const b=c.rows.length*ROW+HEAD;
+      if(h && h+b>cap){ col++; h=0; }
+      h+=b; }
+    return {chunks, fits:col<=cols};
+  };
+  // Take the largest scale that lands on one sheet; only go denser than 0.8 if that's
+  // what buys the single page. If nothing fits, fall back to a readable 0.8 and let it run long.
+  let s=0.8, layout=layoutFor(0.8);
+  for(let t=1.6;t>0.7;t-=0.02){ const L=layoutFor(t); if(L.fits){ s=t; layout=L; break; } }
   const px=n=>(n*s).toFixed(1)+'px';
-  const cards=names.map(n=>{
-    const rows=groups[n].map(a=>{
+  const cards=layout.chunks.map(ch=>{
+    const rows=ch.rows.map(a=>{
       const miss=(a.verified||'')==='Missing';
       // item_id is the tag the crew reads off the tool; some imports carry it in the serial field.
       return `<tr${miss?' class="miss"':''}><td class="id">${esc(a.item_id||a.serial||a.part_no||'—')}</td><td class="lab">${esc(a.description||'—')}${miss?' <b class="tag">MISSING</b>':''}</td><td class="fm">${esc(a.assigned_to||'')}</td><td class="box"></td></tr>`;
     }).join('');
-    return `<div class="cat"><div class="cat-h">${esc(n.toUpperCase())} <span class="ct">${groups[n].length} TO FIND</span></div>
+    return `<div class="cat"><div class="cat-h">${esc(ch.name.toUpperCase())}${ch.cont?' <span class="cont">CONT.</span>':''} <span class="ct">${ch.cont?ch.rows.length+' OF '+ch.total:ch.total+' TO FIND'}</span></div>
       <table><colgroup><col class="w1"><col><col class="w4"><col class="w5"></colgroup>
       <thead><tr><th>ITEM ID</th><th>TOOL NAME · NOMBRE</th><th>ASSIGNED</th><th class="bh">FOUND</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;
@@ -2112,6 +2128,7 @@ function printUnverified(){
    .cat{break-inside:avoid;border:1px solid #b98a4b;margin-bottom:${px(8)};overflow:hidden}
    .cat-h{background:#b45309;color:#fff;font-weight:800;font-size:${px(10)};letter-spacing:.03em;padding:${px(4)} ${px(6)};display:flex;justify-content:space-between;align-items:center}
    .cat-h .ct{font-weight:700;font-size:${px(8.5)};opacity:.95}
+   .cat-h .cont{font-weight:700;font-size:${px(7)};letter-spacing:.06em;border:1px solid rgba(255,255,255,.6);border-radius:2px;padding:0 ${px(3)};margin-left:${px(3)}}
    table{width:100%;border-collapse:collapse;table-layout:fixed}
    col.w1{width:${px(86)}}col.w4{width:${px(70)}}col.w5{width:${px(88)}}
    th{background:#fdf3e6;color:#7a5312;font-size:${px(7.5)};font-weight:700;letter-spacing:.04em;text-align:left;padding:${px(2.5)} ${px(5)};border:1px solid #d3b98f;white-space:nowrap}
