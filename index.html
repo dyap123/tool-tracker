@@ -73,7 +73,17 @@
     html,body{background:#fff !important}
     body>*:not(#printRoot){display:none !important}
     #printRoot{display:block !important;background:#fff !important;color:#111 !important}
-    @page{ size:landscape; margin:10mm; }
+    /* NO @page HERE.
+       Every report injects its own — 17x11 for the field sheets, 11x8.5 for the rest — and
+       a global `size:landscape` competed with it. Two @page rules for one print is a
+       coin-flip on paper size, and when it lost the 17in layout was laid onto Letter and
+       ran off the sheet. Each report owns its page. */
+    /* Belt and braces for the case CSS cannot win: Safari and iOS largely ignore
+       `@page size`, so a 17in layout would overflow whatever the dialog is set to. Scaling
+       the root to fit keeps the sheet readable instead of clipped — a small sheet beats
+       half a sheet. */
+    #printRoot{ width:100%; }
+    #printRoot > .chk, #printRoot > .sum{ transform-origin:top left; }
   }
   #printRoot{display:none}
   .btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;background:#f97316;color:#fff;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;min-height:42px}
@@ -2059,27 +2069,99 @@ function printChecklist(){
    .lab{flex:1}.sys{width:30px;text-align:center;font-weight:700}.boxh{width:60px;text-align:center}.box{width:60px;height:16px;border:1px solid #b9b9b9;background:#fffce8;flex-shrink:0;border-radius:2px}
    .sys2{width:56px;text-align:right;font-weight:800;color:#00522b}
    .nid{color:#b91c1c;font-size:8px;font-weight:800}
-   .foot{margin-top:8px;font-size:9px;color:#555;font-style:italic}`;
+   .foot{margin-top:8px;font-size:9px;color:#555;font-style:italic}
+   .paper{margin-top:4px;font-size:9px;font-weight:700;color:#00522b}`;
   doPrint(html,css);
 }
+/* ON-SITE SUMMARY — 11x17, on the same layout as the unverified sheet.
+ *
+ * This was a 7-column table at 9px on 11x8.5, which is a spreadsheet printed sideways: a
+ * foreman reading it on a tailgate cannot use it. It now reuses the layout that already
+ * works in the field — 11x17, category cards in three columns, one line per tool with the
+ * ID and serial that identify it — because that sheet is already the thing crews are used
+ * to reading, and two report formats for one job is one too many.
+ *
+ * Cost is deliberately dropped. A monthly charge is a PM number; it is noise on a sheet
+ * whose job is "is this on site". The totals band keeps it once, for the super.
+ */
 function printSummary(){
-  const arr=assetsArr().slice().sort((a,b)=>String(a.category).localeCompare(String(b.category))||String(a.item_id).localeCompare(String(b.item_id)));
+  const arr=assetsArr();
   if(!arr.length){ toast('No assets','info'); return; }
-  const onsite=arr.filter(onSite).length, lost=arr.filter(a=>(a.status||'')==='Lost').length;
-  const rows=arr.map(a=>`<tr><td>${esc(a.item_id||a.part_no||'—')}</td><td>${esc(a.description)}</td><td>${esc(a.category)}</td><td>${esc(a.assigned_to||'')}</td><td>${esc(a.status)}</td><td>${a.unit_cost?money2(a.unit_cost):''}</td><td></td></tr>`).join('');
-  const html=`<div class="sum">
-    <div class="banner"><div><div class="kick">WEBCOR BUILDERS · ${esc(state.config.projectName||'LACC PROJECT')}</div><div class="title">TOOL SUMMARY REPORT</div></div><div class="date">${new Date().toLocaleDateString()}</div></div>
-    <div class="stats"><div><b>${arr.length}</b> Total</div><div><b>${onsite}</b> On Site</div><div><b>${lost}</b> Lost</div><div><b>${money(monthlyCharge())}</b>/mo</div></div>
-    <table><thead><tr><th>Item ID</th><th>Description</th><th>Category</th><th>Assigned</th><th>Status</th><th>$/mo</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="sig"><div>Foreman: ____________________</div><div>Date: __________</div><div>Superintendent: ____________________</div></div>
+  const onsiteArr=arr.filter(onSite);
+  const lost=arr.filter(a=>(a.status||'')==='Lost').length;
+  const verified=onsiteArr.filter(a=>(a.verified||'')==='Yes').length;
+  const groups={};
+  onsiteArr.forEach(a=>{ const c=((a.category||'').trim())||'Uncategorized'; (groups[c]=groups[c]||[]).push(a); });
+  const names=Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length||a.localeCompare(b));
+  names.forEach(n=>groups[n].sort((a,b)=>String(a.description||'').localeCompare(String(b.description||''))
+    ||String(a.item_id||'').localeCompare(String(b.item_id||''))));
+  const d=new Date();
+  const dow=d.toLocaleDateString(undefined,{weekday:'long'}).toUpperCase();
+  const date=d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+
+  const cols=names.map(n=>{
+    const g=groups[n];
+    const lines=g.map(a=>{
+      const id=esc(a.item_id||a.part_no||'—');
+      const nm=esc(a.description||'—');
+      const sn=a.serial?`<span class="sn">S/N ${esc(a.serial)}</span>`:'';
+      const who=a.assigned_to?`<span class="who">${esc(a.assigned_to)}</span>`:'';
+      const vf=(a.verified||'')==='Yes'?'<span class="ok">&#10003;</span>'
+             :(a.verified||'')==='Missing'?'<span class="miss">MISSING</span>':'';
+      return `<div class="ln"><span class="lab">${nm} ${sn} ${who}</span><span class="sys">${id}</span><span class="vf">${vf}</span></div>`;
+    }).join('');
+    return `<div class="cat">
+      <div class="cat-h"><span>${esc(n)}</span><span class="ct">${g.length}</span></div>
+      <div class="ch"><span class="lab">TOOL &middot; HERRAMIENTA</span><span class="sys">ID</span><span class="vf">OK</span></div>
+      ${lines}</div>`;
+  }).join('');
+
+  const html=`<div class="chk">
+    <div class="wm"></div>
+    <div class="banner">
+      <div><div class="kick">WEBCOR BUILDERS &middot; ${esc(state.config.projectName||'LACC PROJECT')}</div>
+        <div class="title">TOOLS ON SITE &middot; HERRAMIENTAS EN OBRA</div>
+        <div class="sub">Everything signed out to this job, by category</div></div>
+      <div class="rt"><div class="dow">${dow}</div><div class="date">${date}</div>
+        <div class="onb">${onsiteArr.length} ON SITE</div></div></div>
+    <div class="total"><b>${onsiteArr.length}</b> on site
+      <i>&middot; ${verified} verified &middot; ${onsiteArr.length-verified} not yet counted &middot; ${lost} lost all-time &middot; ${money(monthlyCharge())}/mo</i></div>
+    <div class="cols">${cols}</div>
+    <div class="sig"><div>Foreman &middot; Capataz: ______________________</div>
+      <div>Date &middot; Fecha: ____________</div>
+      <div>Superintendent: ______________________</div></div>
+    <div class="foot">On-site tools only. Returned and lost items are excluded. Source: Assets.</div>
+    <div class="paper">Print at 11&times;17 (Tabloid), landscape.</div>
   </div>`;
-  const css=`@page{size:11in 8.5in;margin:10mm} *{box-sizing:border-box} html,body{background:#fff} .sum{font-family:Inter,Arial,sans-serif;color:#111;font-size:11px;background:#fff}
-   .banner{display:flex;justify-content:space-between;align-items:center;background:#00703C;color:#fff;padding:10px 16px;border-radius:4px}
-   .kick{font-size:9px;font-weight:700}.title{font-size:18px;font-weight:800}.date{font-size:13px;font-weight:700}
-   .stats{display:flex;gap:24px;margin:10px 0;font-size:12px}.stats b{font-size:18px;color:#00703C;margin-right:4px}
-   table{width:100%;border-collapse:collapse}th{background:#00522b;color:#fff;text-align:left;padding:4px 6px;font-size:9px}td{padding:4px 6px;border-bottom:1px solid #ddd}
-   tbody tr:nth-child(even){background:#f8faf9}
-   .sig{display:flex;gap:32px;margin-top:24px;font-size:11px}`;
+
+  /* Same page CSS as the unverified sheet, plus the two columns this report adds. Kept
+     inline rather than shared because doPrint takes a css string — noted as duplication. */
+  const css=`@page{size:17in 11in;margin:9mm} *{box-sizing:border-box} html,body{background:#fff}
+   .chk{position:relative;font-family:Inter,Arial,sans-serif;color:#111;background:#fff}
+   .wm{position:absolute;inset:0;background:url('logo.png') no-repeat center 58%;background-size:44% auto;opacity:.05;filter:grayscale(1);z-index:0}
+   .banner,.total,.cols,.foot,.sig{position:relative;z-index:1}
+   .banner{display:flex;justify-content:space-between;align-items:flex-start;background:#00703C;color:#fff;padding:12px 18px;border-radius:4px}
+   .kick{font-size:9px;font-weight:700;letter-spacing:.06em}.title{font-size:24px;font-weight:800;letter-spacing:-.01em}.sub{font-size:10px;opacity:.92;margin-top:2px}
+   .rt{text-align:right}.dow{font-size:11px;font-weight:700;letter-spacing:.05em}.date{font-size:23px;font-weight:800;line-height:1.05}
+   .onb{font-size:12px;font-weight:700;margin-top:3px}
+   .total{background:#f0f6f3;border:1px solid #00703C;border-left:6px solid #00703C;margin:8px 0;padding:7px 14px;font-size:10px;font-weight:600;color:#333}
+   .total b{font-size:24px;color:#00703C;margin-right:6px}.total i{color:#555;font-weight:400}
+   .cols{column-count:3;column-gap:14px}
+   .cat{break-inside:avoid;border:1px solid #cfd9d3;border-radius:4px;margin-bottom:9px;overflow:hidden}
+   .cat-h{background:#00703C;color:#fff;font-weight:800;font-size:10px;letter-spacing:.03em;padding:5px 9px;display:flex;justify-content:space-between;align-items:center}
+   .cat-h .ct{font-weight:700;font-size:9px;opacity:.95}
+   .ch{display:flex;align-items:center;gap:6px;padding:3px 9px;background:#eef3f0;font-size:8px;font-weight:700;color:#5a6b62;letter-spacing:.04em}
+   .ln{display:flex;align-items:center;gap:6px;padding:3px 9px;border-top:1px solid #eef0ee;font-size:10px}
+   .lab{flex:1;min-width:0}
+   .sn{color:#6b7280;font-size:8.5px}
+   .who{color:#00522b;font-size:8.5px;font-weight:700}
+   .sys{width:64px;text-align:right;font-weight:700;font-size:9px;color:#00522b}
+   .vf{width:44px;text-align:center}
+   .ok{color:#00703C;font-weight:800}
+   .miss{color:#b91c1c;font-size:8px;font-weight:800}
+   .sig{display:flex;gap:32px;margin-top:14px;font-size:11px}
+   .foot{margin-top:8px;font-size:9px;color:#555;font-style:italic}
+   .paper{margin-top:4px;font-size:9px;font-weight:700;color:#00522b}`;
   doPrint(html,css);
 }
 
