@@ -2103,7 +2103,7 @@ function printSummary(){
   const arr=powerToolsOnSite();
   if(!arr.length){ toast('No power tools on site','info'); return; }
   arr.sort((a,b)=>String(a.description||'').localeCompare(String(b.description||''))
-    ||String(a.serial||'').localeCompare(String(b.serial||'')));
+    ||String(a.item_id||'').localeCompare(String(b.item_id||''),undefined,{numeric:true}));
   const verified=arr.filter(a=>(a.verified||'')==='Yes').length;
   const missing=arr.filter(a=>(a.verified||'')==='Missing').length;
   const d=new Date();
@@ -2114,7 +2114,11 @@ function printSummary(){
      nothing to group BY, and a card header per tool is chrome around a single line. */
   const lines=arr.map(a=>{
     const nm=esc(a.description||'—');
-    const sn=a.serial?esc(a.serial):'<span class="nosn">no serial</span>';
+    /* ITEM ID, not serial. Serial is populated on 78 of 188 — so a serial column was
+       "no serial" for more than half the sheet, which reads as broken data rather than as
+       a tool you can find. Item ID is on every asset and is what is stencilled on the
+       tool, which is the number a foreman is actually matching against. */
+    const sn=esc(a.item_id||a.part_no||'—');
     const vf=(a.verified||'')==='Yes'?'<span class="ok">&#10003;</span>'
            :(a.verified||'')==='Missing'?'<span class="miss">MISSING</span>':'';
     return `<div class="ln"><span class="lab">${nm}</span><span class="sn">${sn}</span><span class="vf">${vf}</span></div>`;
@@ -2125,13 +2129,13 @@ function printSummary(){
     <div class="banner">
       <div><div class="kick">WEBCOR BUILDERS &middot; ${esc(state.config.projectName||'LACC PROJECT')}</div>
         <div class="title">POWER TOOLS ON SITE &middot; HERRAMIENTAS EL&Eacute;CTRICAS</div>
-        <div class="sub">Name and serial &middot; Nombre y n&uacute;mero de serie</div></div>
+        <div class="sub">Name and item ID &middot; Nombre y n&uacute;mero de art&iacute;culo</div></div>
       <div class="rt"><div class="dow">${dow}</div><div class="date">${date}</div>
         <div class="onb">${arr.length} ON SITE</div></div></div>
     <div class="total"><b>${arr.length}</b> power tools on site
       <i>&middot; ${verified} verified &middot; ${arr.length-verified-missing} not yet counted${missing?` &middot; ${missing} missing`:''}</i></div>
     <div class="cols">
-      <div class="ch"><span class="lab">TOOL &middot; HERRAMIENTA</span><span class="sn">SERIAL</span><span class="vf">OK</span></div>
+      <div class="ch"><span class="lab">TOOL &middot; HERRAMIENTA</span><span class="sn">ITEM ID</span><span class="vf">OK</span></div>
       ${lines}</div>
     <div class="sig"><div>Foreman &middot; Capataz: ______________________</div>
       <div>Date &middot; Fecha: ____________</div>
@@ -2158,8 +2162,7 @@ function printSummary(){
    .ln{display:flex;align-items:center;gap:8px;padding:4px 6px;border-bottom:1px solid #eef0ee;font-size:11px;break-inside:avoid}
    .ln:nth-child(even){background:#fafcfb}
    .lab{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-   .sn{width:96px;text-align:right;font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#00522b;font-weight:700}
-   .nosn{color:#9aa5a0;font-weight:400;font-style:italic}
+   .sn{width:74px;text-align:right;font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#00522b;font-weight:800}
    .vf{width:42px;text-align:center}
    .ok{color:#00703C;font-weight:800;font-size:13px}
    .miss{color:#b91c1c;font-size:8px;font-weight:800}
