@@ -1893,7 +1893,7 @@ function renderReports(root){
       <div class="bg-surface-container-lowest border border-outline-variant rounded p-lg">
         <div class="flex items-center gap-sm mb-sm"><span class="material-symbols-outlined text-primary text-[28px]">description</span><h3 class="font-headline-md text-on-surface">Foreman Summary Report</h3></div>
         <p class="font-body-md text-on-surface-variant mb-md">Filled asset list grouped by category with status + signature lines, for the record.</p>
-        <div class="flex gap-sm flex-wrap"><button class="btn-primary" data-action="print-summary"><span class="material-symbols-outlined text-[18px]">print</span>Generate Summary</button>
+        <div class="flex gap-sm flex-wrap"><button class="btn-primary" data-action="print-summary" title="11x17 field sheet — power tools on site, name and serial"><span class="material-symbols-outlined text-[18px]">print</span>Power Tools Sheet</button>
         <button class="btn-ghost" data-action="export-assets-xlsx"><span class="material-symbols-outlined text-[18px]">table_view</span>Excel</button></div>
       </div>
       <div class="bg-surface-container-lowest border border-outline-variant rounded p-lg">
@@ -2084,80 +2084,84 @@ function printChecklist(){
  * Cost is deliberately dropped. A monthly charge is a PM number; it is noise on a sheet
  * whose job is "is this on site". The totals band keeps it once, for the super.
  */
+/* POWER TOOLS ON SITE — 11x17, and nothing a foreman does not need.
+ *
+ * The first pass carried category cards, the assigned foreman and a cost column. All three
+ * were removed on the same reasoning: this sheet answers one question, "is this tool here",
+ * and every field that does not help answer it is a field someone has to read past. What
+ * identifies a tool on a tailgate is its NAME and its SERIAL. That is the sheet.
+ *
+ * Scoped to power tools deliberately — 189 of 297 assets. The rest is jobsite supplies,
+ * layout gear and consumables that are not counted this way, and mixing them in is what
+ * made the old summary a spreadsheet.
+ */
+const POWER_CAT=/power tool/i;
+function powerToolsOnSite(){
+  return assetsArr().filter(onSite).filter(a=>POWER_CAT.test(String(a.category||'')));
+}
 function printSummary(){
-  const arr=assetsArr();
-  if(!arr.length){ toast('No assets','info'); return; }
-  const onsiteArr=arr.filter(onSite);
-  const lost=arr.filter(a=>(a.status||'')==='Lost').length;
-  const verified=onsiteArr.filter(a=>(a.verified||'')==='Yes').length;
-  const groups={};
-  onsiteArr.forEach(a=>{ const c=((a.category||'').trim())||'Uncategorized'; (groups[c]=groups[c]||[]).push(a); });
-  const names=Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length||a.localeCompare(b));
-  names.forEach(n=>groups[n].sort((a,b)=>String(a.description||'').localeCompare(String(b.description||''))
-    ||String(a.item_id||'').localeCompare(String(b.item_id||''))));
+  const arr=powerToolsOnSite();
+  if(!arr.length){ toast('No power tools on site','info'); return; }
+  arr.sort((a,b)=>String(a.description||'').localeCompare(String(b.description||''))
+    ||String(a.serial||'').localeCompare(String(b.serial||'')));
+  const verified=arr.filter(a=>(a.verified||'')==='Yes').length;
+  const missing=arr.filter(a=>(a.verified||'')==='Missing').length;
   const d=new Date();
   const dow=d.toLocaleDateString(undefined,{weekday:'long'}).toUpperCase();
   const date=d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
 
-  const cols=names.map(n=>{
-    const g=groups[n];
-    const lines=g.map(a=>{
-      const id=esc(a.item_id||a.part_no||'—');
-      const nm=esc(a.description||'—');
-      const sn=a.serial?`<span class="sn">S/N ${esc(a.serial)}</span>`:'';
-      const who=a.assigned_to?`<span class="who">${esc(a.assigned_to)}</span>`:'';
-      const vf=(a.verified||'')==='Yes'?'<span class="ok">&#10003;</span>'
-             :(a.verified||'')==='Missing'?'<span class="miss">MISSING</span>':'';
-      return `<div class="ln"><span class="lab">${nm} ${sn} ${who}</span><span class="sys">${id}</span><span class="vf">${vf}</span></div>`;
-    }).join('');
-    return `<div class="cat">
-      <div class="cat-h"><span>${esc(n)}</span><span class="ct">${g.length}</span></div>
-      <div class="ch"><span class="lab">TOOL &middot; HERRAMIENTA</span><span class="sys">ID</span><span class="vf">OK</span></div>
-      ${lines}</div>`;
+  /* One flat list flowing down three columns. No grouping: with one category there is
+     nothing to group BY, and a card header per tool is chrome around a single line. */
+  const lines=arr.map(a=>{
+    const nm=esc(a.description||'—');
+    const sn=a.serial?esc(a.serial):'<span class="nosn">no serial</span>';
+    const vf=(a.verified||'')==='Yes'?'<span class="ok">&#10003;</span>'
+           :(a.verified||'')==='Missing'?'<span class="miss">MISSING</span>':'';
+    return `<div class="ln"><span class="lab">${nm}</span><span class="sn">${sn}</span><span class="vf">${vf}</span></div>`;
   }).join('');
 
   const html=`<div class="chk">
     <div class="wm"></div>
     <div class="banner">
       <div><div class="kick">WEBCOR BUILDERS &middot; ${esc(state.config.projectName||'LACC PROJECT')}</div>
-        <div class="title">TOOLS ON SITE &middot; HERRAMIENTAS EN OBRA</div>
-        <div class="sub">Everything signed out to this job, by category</div></div>
+        <div class="title">POWER TOOLS ON SITE &middot; HERRAMIENTAS EL&Eacute;CTRICAS</div>
+        <div class="sub">Name and serial &middot; Nombre y n&uacute;mero de serie</div></div>
       <div class="rt"><div class="dow">${dow}</div><div class="date">${date}</div>
-        <div class="onb">${onsiteArr.length} ON SITE</div></div></div>
-    <div class="total"><b>${onsiteArr.length}</b> on site
-      <i>&middot; ${verified} verified &middot; ${onsiteArr.length-verified} not yet counted &middot; ${lost} lost all-time &middot; ${money(monthlyCharge())}/mo</i></div>
-    <div class="cols">${cols}</div>
+        <div class="onb">${arr.length} ON SITE</div></div></div>
+    <div class="total"><b>${arr.length}</b> power tools on site
+      <i>&middot; ${verified} verified &middot; ${arr.length-verified-missing} not yet counted${missing?` &middot; ${missing} missing`:''}</i></div>
+    <div class="cols">
+      <div class="ch"><span class="lab">TOOL &middot; HERRAMIENTA</span><span class="sn">SERIAL</span><span class="vf">OK</span></div>
+      ${lines}</div>
     <div class="sig"><div>Foreman &middot; Capataz: ______________________</div>
       <div>Date &middot; Fecha: ____________</div>
       <div>Superintendent: ______________________</div></div>
-    <div class="foot">On-site tools only. Returned and lost items are excluded. Source: Assets.</div>
+    <div class="foot">Power tools signed out to this job. Hand tools, layout gear and consumables are not listed. Source: Assets.</div>
     <div class="paper">Print at 11&times;17 (Tabloid), landscape.</div>
   </div>`;
 
-  /* Same page CSS as the unverified sheet, plus the two columns this report adds. Kept
-     inline rather than shared because doPrint takes a css string — noted as duplication. */
   const css=`@page{size:17in 11in;margin:9mm} *{box-sizing:border-box} html,body{background:#fff}
    .chk{position:relative;font-family:Inter,Arial,sans-serif;color:#111;background:#fff}
    .wm{position:absolute;inset:0;background:url('logo.png') no-repeat center 58%;background-size:44% auto;opacity:.05;filter:grayscale(1);z-index:0}
-   .banner,.total,.cols,.foot,.sig{position:relative;z-index:1}
+   .banner,.total,.cols,.foot,.sig,.paper{position:relative;z-index:1}
    .banner{display:flex;justify-content:space-between;align-items:flex-start;background:#00703C;color:#fff;padding:12px 18px;border-radius:4px}
    .kick{font-size:9px;font-weight:700;letter-spacing:.06em}.title{font-size:24px;font-weight:800;letter-spacing:-.01em}.sub{font-size:10px;opacity:.92;margin-top:2px}
    .rt{text-align:right}.dow{font-size:11px;font-weight:700;letter-spacing:.05em}.date{font-size:23px;font-weight:800;line-height:1.05}
    .onb{font-size:12px;font-weight:700;margin-top:3px}
    .total{background:#f0f6f3;border:1px solid #00703C;border-left:6px solid #00703C;margin:8px 0;padding:7px 14px;font-size:10px;font-weight:600;color:#333}
    .total b{font-size:24px;color:#00703C;margin-right:6px}.total i{color:#555;font-weight:400}
-   .cols{column-count:3;column-gap:14px}
-   .cat{break-inside:avoid;border:1px solid #cfd9d3;border-radius:4px;margin-bottom:9px;overflow:hidden}
-   .cat-h{background:#00703C;color:#fff;font-weight:800;font-size:10px;letter-spacing:.03em;padding:5px 9px;display:flex;justify-content:space-between;align-items:center}
-   .cat-h .ct{font-weight:700;font-size:9px;opacity:.95}
-   .ch{display:flex;align-items:center;gap:6px;padding:3px 9px;background:#eef3f0;font-size:8px;font-weight:700;color:#5a6b62;letter-spacing:.04em}
-   .ln{display:flex;align-items:center;gap:6px;padding:3px 9px;border-top:1px solid #eef0ee;font-size:10px}
-   .lab{flex:1;min-width:0}
-   .sn{color:#6b7280;font-size:8.5px}
-   .who{color:#00522b;font-size:8.5px;font-weight:700}
-   .sys{width:64px;text-align:right;font-weight:700;font-size:9px;color:#00522b}
-   .vf{width:44px;text-align:center}
-   .ok{color:#00703C;font-weight:800}
+   .cols{column-count:3;column-gap:16px;border-top:2px solid #00703C}
+   /* The header row repeats at the top of every column, so column two is not an unlabelled
+      list of serials. column-span would put it across all three and only once. */
+   .ch{display:flex;align-items:center;gap:8px;padding:4px 6px;background:#eef3f0;font-size:8px;font-weight:700;
+       color:#5a6b62;letter-spacing:.04em;break-inside:avoid}
+   .ln{display:flex;align-items:center;gap:8px;padding:4px 6px;border-bottom:1px solid #eef0ee;font-size:11px;break-inside:avoid}
+   .ln:nth-child(even){background:#fafcfb}
+   .lab{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+   .sn{width:96px;text-align:right;font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#00522b;font-weight:700}
+   .nosn{color:#9aa5a0;font-weight:400;font-style:italic}
+   .vf{width:42px;text-align:center}
+   .ok{color:#00703C;font-weight:800;font-size:13px}
    .miss{color:#b91c1c;font-size:8px;font-weight:800}
    .sig{display:flex;gap:32px;margin-top:14px;font-size:11px}
    .foot{margin-top:8px;font-size:9px;color:#555;font-style:italic}
